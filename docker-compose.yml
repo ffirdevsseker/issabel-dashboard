@@ -1,0 +1,49 @@
+services:
+
+
+  postgres:
+    image: postgres:16
+    container_name: dashboard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard_user
+      POSTGRES_PASSWORD: Dashboard2026!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U dashboard_user -d dashboard" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: issabel-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: dashboard_user
+      DB_PASSWORD: Dashboard2026!
+      DB_NAME: dashboard
+      AMI_HOST: ${AMI_HOST:-192.168.1.100}
+      AMI_PORT: ${AMI_PORT:-5038}
+      AMI_USER: ${AMI_USER:-admin}
+      AMI_SECRET: ${AMI_SECRET:-your_ami_secret}
+      SECRET_KEY: ${SECRET_KEY:-change-this-to-a-random-long-string-later}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+
+volumes:
+  postgres_data:

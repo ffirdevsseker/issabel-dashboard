@@ -16,20 +16,14 @@ export function Panel({ title, color, children, stretch, badge }) {
       display: "flex",
       flexDirection: "column",
       height: stretch ? "100%" : undefined,
-      background: "linear-gradient(160deg, #ffffff 0%, #f7fbff 100%)",
-      border: "1px solid rgba(148,163,184,0.18)",
-      borderTop: `2px solid ${color}`,
-      borderRadius: 16,
-      boxShadow: "0 10px 28px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.75)",
       overflow: "hidden",
     }}>
       <div style={{
         padding: "12px 16px",
-        borderBottom: "1px solid rgba(148,163,184,0.14)",
+        borderBottom: "1px solid rgba(148,163,184,0.12)",
         display: "flex",
         alignItems: "center",
         gap: 8,
-        background: "rgba(248,250,252,0.85)",
         flexShrink: 0,
       }}>
         <div style={{
@@ -124,46 +118,11 @@ export default function AdminOverview() {
 
   return (
     <div style={{
-      margin: -16,
-      padding: 16,
-      minHeight: "calc(100% + 32px)",
-      background: "linear-gradient(145deg, #f8fbff 0%, #eef5ff 50%, #f7fafc 100%)",
-      borderRadius: 16,
-      boxSizing: "border-box",
+      minHeight: "100%",
       display: "flex",
       flexDirection: "column",
       gap: 14,
     }}>
-      {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center",
-        justifyContent: "space-between", flexWrap: "wrap", gap: 8,
-      }}>
-        <div>
-          <h1 style={{
-            margin: 0, fontSize: 19, fontWeight: 800, color: "#0f172a",
-            letterSpacing: "-0.01em",
-          }}>
-            Genel Bakış
-          </h1>
-          <p style={{ margin: 0, fontSize: 11, color: "#64748b", marginTop: 2 }}>
-            {isBt ? "BT Metrikleri & Canlı Kuyruk" : "Çağrı merkezi anlık durumu"}
-            {" · "}15sn'de bir güncellenir
-          </p>
-        </div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: "rgba(55,138,221,0.08)",
-          border: "1px solid rgba(55,138,221,0.16)",
-          borderRadius: 8, padding: "5px 11px",
-        }}>
-          <RefreshCw size={11} color="#60a5fa" />
-          <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 600 }}>
-            {lastSync ? lastSync.toLocaleTimeString("tr-TR") : "Yükleniyor..."}
-          </span>
-        </div>
-      </div>
-
       {/* Top Metrics — all roles */}
       <TopMetrics summary={summary} loading={loading} />
 

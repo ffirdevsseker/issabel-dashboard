@@ -409,11 +409,7 @@ export default function AdminLayout() {
             flex: 1,
             minHeight: 0,
             overflow: "auto",
-            background: "#fff",
-            border: "1px solid rgba(0,0,0,0.06)",
-            borderRadius: 16,
             padding: 16,
-            boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
           }}
         >
           <Outlet />

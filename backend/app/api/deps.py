@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from app.core.security import decode_access_token
 from app.db.async_session import get_async_db
+from app.db.session import get_db  # noqa: F401 — supervisor modülleri buradan import ediyor
 from app.models.user import User
 
 
@@ -30,12 +31,21 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    stmt = select(User).where(User.kullanici_adi == username)
+    from app.models.role import Rol
+    stmt = (
+        select(User, Rol.ad)
+        .outerjoin(Rol, Rol.id == User.rol_id)
+        .where(User.kullanici_adi == username)
+    )
     result = await db.execute(stmt)
-    user = result.scalar_one_or_none()
-
+    row = result.first()
+    if not row:
+        raise credentials_exception
+    user, db_role = row
     if not user or user.silindi_mi:
         raise credentials_exception
+    # DB'den gelen gerçek rol adını kullanıcıya ekle (ROLE_MAP'teki sabit ID'leri bypass et)
+    user._db_role = db_role or payload.get("role", "personel")
     return user
 
 
@@ -67,5 +77,14 @@ async def require_supervisor(current_user: User = Depends(get_current_user)) -> 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Bu işlem için süpervizör veya yönetici yetkisi gereklidir",
+        )
+    return current_user
+
+
+async def require_bt(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role_name not in ("bt", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bu işlem için BT birimi veya yönetici yetkisi gereklidir",
         )
     return current_user

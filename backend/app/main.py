@@ -24,7 +24,7 @@ async def on_startup():
         # Asenkron seeding yap
         await seed_db()
     except Exception as exc:
-        logger.warning("Database setup failed", exc_info=exc)
+        logger.error("Uygulama başlangıcında DB kurulumu başarısız — login çalışmayabilir", exc_info=exc)
 
 
 @app.on_event("startup")

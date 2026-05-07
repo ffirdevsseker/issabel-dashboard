@@ -12,7 +12,7 @@ class User(Base):
     __tablename__ = "kullanicilar"
 
     id             = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    rol_id         = Column(Integer, nullable=False, default=3)
+    rol_id         = Column(Integer, ForeignKey("roller.id"), nullable=False, default=3)
     departman_id   = Column(PGUUID(as_uuid=True), ForeignKey("departmanlar.id"), nullable=True)
     ekip_id        = Column(PGUUID(as_uuid=True), ForeignKey("ekipler.id"), nullable=True)
     ad_soyad       = Column(String(128), default="")
@@ -54,4 +54,7 @@ class User(Base):
 
     @property
     def role_name(self) -> str:
+        # get_current_user tarafından DB'den set edilirse onu kullan
+        if hasattr(self, "_db_role") and self._db_role:
+            return self._db_role
         return ROLE_MAP.get(self.rol_id, "personel")

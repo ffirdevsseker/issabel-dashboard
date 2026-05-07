@@ -1,26 +1,33 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Loader2, Lock, Phone, User } from "lucide-react";
+import { Eye, EyeOff, Loader2, Lock, Phone, ShieldCheck, User } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
 import logo from "@/assets/logo2.png";
+
+const ROLES = [
+  { value: "admin",      label: "Admin",       desc: "Sistem yöneticisi" },
+  { value: "supervisor", label: "Supervisor",   desc: "Ekip sorumlusu"   },
+  { value: "agent",      label: "Agent",        desc: "Çağrı merkezi temsilcisi" },
+];
 
 export default function Login() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
-  const [username, setUsername]       = useState("");
-  const [password, setPassword]       = useState("");
+  const [selectedRole, setSelectedRole] = useState("agent");
+  const [username, setUsername]         = useState("");
+  const [password, setPassword]         = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]             = useState("");
-  const [submitting, setSubmitting]   = useState(false);
+  const [error, setError]               = useState("");
+  const [submitting, setSubmitting]     = useState(false);
 
+  // /auth/me tamamlanıp user set edilince role'e göre yönlendir
   useEffect(() => {
-    if (user) {
-      if (user.role === "admin") navigate("/admin", { replace: true });
-      else if (user.role === "supervisor") navigate("/supervisor", { replace: true });
-      else navigate("/", { replace: true });
-    }
+    if (!user) return;
+    if (user.role === "admin")           navigate("/admin",      { replace: true });
+    else if (user.role === "supervisor") navigate("/supervisor", { replace: true });
+    else                                 navigate("/",           { replace: true });
   }, [user, navigate]);
 
   const handleSubmit = async (e) => {
@@ -28,7 +35,7 @@ export default function Login() {
     setError("");
     setSubmitting(true);
     try {
-      await login(username, password);
+      await login(username, password, selectedRole);
     } catch (err) {
       setError(err.response?.data?.detail || "Giriş yapılamadı. Lütfen tekrar deneyin.");
     } finally {
@@ -133,6 +140,32 @@ export default function Login() {
                 </div>
               )}
 
+              {/* Rol Seçimi */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[13px] font-semibold text-slate-700">
+                  Rol
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {ROLES.map(({ value, label, desc }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSelectedRole(value)}
+                      disabled={submitting}
+                      className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-2.5 text-center transition-all
+                        ${selectedRole === value
+                          ? "border-slate-800 bg-slate-900 text-white shadow-md"
+                          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-white"
+                        } disabled:opacity-50`}
+                    >
+                      <ShieldCheck className={`h-4 w-4 ${selectedRole === value ? "text-emerald-400" : "text-slate-400"}`} />
+                      <span className="text-[12px] font-bold leading-none">{label}</span>
+                      <span className={`text-[10px] leading-none ${selectedRole === value ? "text-slate-400" : "text-slate-400"}`}>{desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Kullanıcı Adı */}
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="username" className="text-[13px] font-semibold text-slate-700">
@@ -186,7 +219,7 @@ export default function Login() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={submitting || !username || !password}
+                disabled={submitting || !username || !password || !selectedRole}
                 className="mt-2 h-11 w-full rounded-xl font-bold text-[14px] text-white transition-all duration-200
                   bg-gradient-to-b from-slate-800 to-slate-900
                   hover:from-slate-700 hover:to-slate-800

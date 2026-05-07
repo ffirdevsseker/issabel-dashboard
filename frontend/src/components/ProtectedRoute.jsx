@@ -30,10 +30,11 @@ export default function ProtectedRoute({
     return <Navigate to="/" replace />;
   }
 
-  // Agent-only rotası: admin ve supervisor kendi panellerine yönlendirilsin
+  // Admin/supervisor kendi panellerine, bt personel dashboard'una yönlendirilsin
   if (!requireAdmin && !requireSupervisor) {
     if (user.role === "admin") return <Navigate to="/admin" replace />;
     if (user.role === "supervisor") return <Navigate to="/supervisor" replace />;
+    // bt rolü: personel dashboard'unu kullanır (kendi layout'u hazır olana dek)
   }
 
   return children;

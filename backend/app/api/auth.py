@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -9,7 +11,9 @@ from app.db.async_session import get_async_db
 from app.db.health import check_db_connection
 from app.models.role import Rol
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserMe
+from app.schemas.auth import LoginRequest, TokenResponse, UserMe, SELECTED_ROLE_MAP
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -50,6 +54,14 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_async_
             detail="Kullanıcı adı veya şifre hatalı",
         )
 
+    # Seçilen rol ile DB'deki gerçek rol uyuşmalı
+    allowed_db_roles = SELECTED_ROLE_MAP[credentials.selected_role]
+    if role_name not in allowed_db_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Seçilen rol hesabınızla eşleşmiyor",
+        )
+
     if user.silindi_mi:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -62,7 +74,7 @@ async def login(credentials: LoginRequest, db: AsyncSession = Depends(get_async_
         role=role_name,
         extension=user.dahili_no,
     )
-    return TokenResponse(access_token=token)
+    return TokenResponse(access_token=token, role=role_name)
 
 
 @router.get("/dashboard-layout")
@@ -108,7 +120,7 @@ async def get_dashboard_layout(
 
 
 @router.get("/me", response_model=UserMe)
-def read_me(current_user: User = Depends(get_current_user)):
+async def read_me(current_user: User = Depends(get_current_user)):
     return UserMe(
         id=str(current_user.id),
         username=current_user.kullanici_adi,
@@ -116,4 +128,10 @@ def read_me(current_user: User = Depends(get_current_user)):
         extension=current_user.dahili_no,
         role=current_user.role_name,
         is_active=not current_user.silindi_mi,
+        departman_id=str(current_user.departman_id) if current_user.departman_id else None,
+        ekip_id=str(current_user.ekip_id) if current_user.ekip_id else None,
+        xp=current_user.xp or 0,
+        seviye=current_user.seviye or 1,
+        unvan=current_user.unvan or "Bronz",
+        anlik_durum=current_user.anlik_durum or "offline",
     )

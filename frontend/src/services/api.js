@@ -67,6 +67,11 @@ export const dashboardApi = {
   getAgentStatus: () => api.get("/dashboard/agent-status"),
   getAlarms:      () => api.get("/dashboard/alarms"),
   getMetrics:     () => api.get("/dashboard/system-metrics"),
+  getAgents:      () => api.get("/dashboard/agents"),
+  getQueueLive:   () => api.get("/dashboard/queue-live"),
+  getAiFeed:      () => api.get("/dashboard/ai-feed"),
+  getIssues:      () => api.get("/dashboard/issues"),
+  endBreak:       (userId) => api.post("/dashboard/actions/end-break", { user_id: userId }),
 };
 
 export const authApi = {

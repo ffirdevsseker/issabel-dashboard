@@ -21,16 +21,16 @@ function AgentCard({ agent, isAdmin, onEndBreak }) {
   return (
     <div style={{
       background: alarm
-        ? "linear-gradient(145deg, #251520 0%, #1e1020 100%)"
-        : "linear-gradient(145deg, #132334 0%, #1a3050 100%)",
-      border: `1px solid ${alarm ? "rgba(239,68,68,0.28)" : "rgba(255,255,255,0.07)"}`,
+        ? "linear-gradient(145deg, #fff5f5 0%, #fff1f2 100%)"
+        : "linear-gradient(145deg, #ffffff 0%, #f8fbff 100%)",
+      border: `1px solid ${alarm ? "rgba(239,68,68,0.22)" : "rgba(148,163,184,0.14)"}`,
       borderRadius: 12,
       padding: "11px 12px",
       position: "relative",
       transition: "box-shadow 0.2s",
       boxShadow: alarm
-        ? "0 0 16px rgba(239,68,68,0.1), 0 4px 12px rgba(0,0,0,0.25)"
-        : "0 4px 12px rgba(0,0,0,0.2)",
+        ? "0 0 14px rgba(239,68,68,0.08), 0 4px 12px rgba(15,23,42,0.06)"
+        : "0 4px 12px rgba(15,23,42,0.06)",
     }}>
       {/* Status bar at top */}
       <div style={{
@@ -50,14 +50,14 @@ function AgentCard({ agent, isAdmin, onEndBreak }) {
       )}
 
       <div style={{
-        fontWeight: 700, fontSize: 12, color: "#d1dde8",
+        fontWeight: 700, fontSize: 12, color: "#0f172a",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         paddingRight: alarm ? 16 : 0, marginBottom: 2,
       }}>
         {agent.ad_soyad}
       </div>
       <div style={{
-        fontSize: 10, color: "rgba(255,255,255,0.35)",
+        fontSize: 10, color: "#64748b",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         marginBottom: 8,
       }}>
@@ -84,7 +84,7 @@ function AgentCard({ agent, isAdmin, onEndBreak }) {
 
       {/* Stats */}
       <div style={{ display: "flex", gap: 8 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 10, color: "rgba(255,255,255,0.42)" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 10, color: "#64748b" }}>
           <Phone size={9} color="#378ADD" /> {agent.bugun_toplam_cagri}
         </span>
         {agent.bugun_ort_csat > 0 && (
@@ -100,10 +100,10 @@ function AgentCard({ agent, isAdmin, onEndBreak }) {
           disabled={busy}
           style={{
             marginTop: 9, width: "100%",
-            background: busy ? "transparent" : "rgba(239,68,68,0.14)",
-            border: "1px solid rgba(239,68,68,0.32)",
+            background: busy ? "transparent" : "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.24)",
             borderRadius: 6, padding: "4px 0",
-            color: "#f87171", fontSize: 10, fontWeight: 700,
+            color: "#dc2626", fontSize: 10, fontWeight: 700,
             cursor: busy ? "not-allowed" : "pointer",
             opacity: busy ? 0.5 : 1,
             letterSpacing: "0.02em",
@@ -134,7 +134,7 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
         <div style={{ position: "relative", flex: 1 }}>
           <Search size={12} style={{
             position: "absolute", left: 9, top: "50%",
-            transform: "translateY(-50%)", color: "rgba(255,255,255,0.28)",
+            transform: "translateY(-50%)", color: "#94a3b8",
             pointerEvents: "none",
           }} />
           <input
@@ -143,9 +143,9 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
             placeholder="Personel ara..."
             style={{
               width: "100%", height: 32, paddingLeft: 28, paddingRight: 10,
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 8, color: "#c7d4e4", fontSize: 12, outline: "none",
+              background: "#ffffff",
+              border: "1px solid rgba(148,163,184,0.16)",
+              borderRadius: 8, color: "#0f172a", fontSize: 12, outline: "none",
               boxSizing: "border-box",
             }}
           />
@@ -155,9 +155,9 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
           onChange={(e) => setDurumFilter(e.target.value)}
           style={{
             height: 32, padding: "0 8px",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 8, color: "#c7d4e4", fontSize: 11, outline: "none", cursor: "pointer",
+            background: "#ffffff",
+            border: "1px solid rgba(148,163,184,0.16)",
+            borderRadius: 8, color: "#0f172a", fontSize: 11, outline: "none", cursor: "pointer",
           }}
         >
           <option value="tumu">Tümü</option>
@@ -167,7 +167,7 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
           <option value="offline">Offline</option>
         </select>
         <span style={{
-          fontSize: 11, color: "rgba(255,255,255,0.35)",
+          fontSize: 11, color: "#64748b",
           alignSelf: "center", whiteSpace: "nowrap",
         }}>
           {filtered.length} kişi
@@ -188,7 +188,7 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
           <div style={{
             gridColumn: "1 / -1",
             textAlign: "center",
-            color: "rgba(255,255,255,0.25)",
+            color: "#94a3b8",
             fontSize: 13, padding: "32px 0",
           }}>
             Sonuç bulunamadı

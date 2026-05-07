@@ -9,17 +9,21 @@ import {
   ChevronRight,
   ClipboardCheck,
   CreditCard,
+  Coffee,
   FileClock,
   LayoutDashboard,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   PlugZap,
+  Phone,
   Send,
   Shield,
   ShieldX,
   SlidersHorizontal,
   Trophy,
+  UserCheck,
+  Headphones,
   Users,
 } from "lucide-react";
 
@@ -44,6 +48,13 @@ const HEALTH = {
   detail: "AMI, CRM, DB, WebSocket, AI, Kayıt sunucusu aktif",
   updatedAt: "Bugün 11:42",
 };
+
+const OPERATIONAL_STATS = [
+  { label: "Aktif", value: 8, icon: UserCheck, color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+  { label: "Mola", value: 2, icon: Coffee, color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  { label: "Meşgul", value: 3, icon: Headphones, color: "#ef4444", bg: "rgba(239,68,68,0.12)" },
+  { label: "Kuyruk", value: 7, suffix: "bekleyen", icon: Phone, color: "#3b82f6", bg: "rgba(59,130,246,0.12)" },
+];
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -316,104 +327,80 @@ export default function AdminLayout() {
       </aside>
 
       <div style={{ flex: 1, minWidth: 0, height: "calc(100vh - 24px)", display: "flex", flexDirection: "column" }}>
-        <header style={{ marginBottom: 10 }}>
+        <header style={{ marginBottom: 12 }}>
           <div
             style={{
               background: "linear-gradient(180deg,#132334 0%,#18293a 60%,#102131 100%)",
               border: "1px solid rgba(255,255,255,0.05)",
-              borderRadius: 16,
-              padding: "12px 16px",
+              borderRadius: 14,
+              padding: "10px 14px",
               boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)",
               display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
               flexWrap: "wrap",
-              gap: 10,
-              alignItems: "center",
-              justifyContent: "space-between",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                background: "rgba(16,185,129,0.1)",
-                border: "1px solid rgba(16,185,129,0.2)",
-                borderRadius: 12,
-                padding: "8px 12px",
-                minWidth: 320,
-                flex: "1 1 320px",
-              }}
-            >
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "rgba(16,185,129,0.2)",
-                  border: "1px solid rgba(16,185,129,0.3)",
-                }}
-              >
-                <Activity style={{ width: 16, height: 16, color: "#34d399" }} />
-              </div>
-              <div>
-                <div style={{ color: "#34d399", fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  {HEALTH.label}: {HEALTH.status}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: "1 1 520px" }}>
+              {OPERATIONAL_STATS.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.label}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      paddingRight: index === OPERATIONAL_STATS.length - 1 ? 0 : 14,
+                      borderRight: index === OPERATIONAL_STATS.length - 1 ? "none" : "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: "50%",
+                        background: item.bg,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Icon strokeWidth={2.4} style={{ width: 22, height: 22, color: item.color }} />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={{ color: "rgba(255,255,255,0.72)", fontSize: 13, fontWeight: 500, letterSpacing: "0.02em" }}>
+                        {item.label}
+                      </span>
+                      <span style={{ color: item.color, fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>
+                        {item.value}
+                        {item.suffix ? (
+                          <span style={{ color: "rgba(255,255,255,0.62)", fontSize: 11, fontWeight: 600, marginLeft: 6 }}>
+                            {item.suffix}
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 12px", borderRadius: 12, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(16,185,129,0.2)", border: "1px solid rgba(16,185,129,0.3)" }}>
+                  <Activity style={{ width: 16, height: 16, color: "#34d399" }} />
                 </div>
-                <div style={{ color: "#a7f3d0", fontSize: 12, fontWeight: 600 }}>{HEALTH.detail}</div>
-                <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 1 }}>Son güncelleme: {HEALTH.updatedAt}</div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <div style={{ color: "#34d399", fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    {HEALTH.label}: {HEALTH.status}
+                  </div>
+                  <div style={{ color: "#a7f3d0", fontSize: 12, fontWeight: 600 }}>{HEALTH.detail}</div>
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <MetricChip label="Açık Talimatlar" value={COUNTS.directives} color="blue" />
-              <MetricChip label="Onay Bekleyen" value={COUNTS.pendingRequests} color="orange" />
-              <MetricChip label="Kritik Uyarı" value={COUNTS.criticalAlerts} color="red" />
-
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "50%",
-                  background: "#274462",
-                  color: "#fff",
-                  border: "2px solid rgba(52,211,153,0.4)",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {initials}
-              </div>
             </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 8,
-              background: "rgba(239,68,68,0.1)",
-              border: "1px solid rgba(239,68,68,0.2)",
-              borderRadius: 12,
-              padding: "8px 12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <BellRing style={{ width: 14, height: 14, color: "#ef4444" }} />
-              <span style={{ color: "#fca5a5", fontSize: 12, fontWeight: 700 }}>
-                Kritik Uyarılar: AMI bağlantı dalgalanması, lisans bitişine 7 gün, yüksek cevapsız oranı
-              </span>
-            </div>
-            <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: 700 }}>
-              Aktif sayfa: {activeRoute.label}
-            </span>
           </div>
         </header>
 

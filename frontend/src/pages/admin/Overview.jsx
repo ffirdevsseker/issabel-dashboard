@@ -16,20 +16,20 @@ export function Panel({ title, color, children, stretch, badge }) {
       display: "flex",
       flexDirection: "column",
       height: stretch ? "100%" : undefined,
-      background: "linear-gradient(160deg, #132334 0%, #162c44 100%)",
-      border: "1px solid rgba(255,255,255,0.07)",
+      background: "linear-gradient(160deg, #ffffff 0%, #f7fbff 100%)",
+      border: "1px solid rgba(148,163,184,0.18)",
       borderTop: `2px solid ${color}`,
       borderRadius: 16,
-      boxShadow: "0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)",
+      boxShadow: "0 10px 28px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.75)",
       overflow: "hidden",
     }}>
       <div style={{
         padding: "12px 16px",
-        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        borderBottom: "1px solid rgba(148,163,184,0.14)",
         display: "flex",
         alignItems: "center",
         gap: 8,
-        background: "rgba(0,0,0,0.18)",
+        background: "rgba(248,250,252,0.85)",
         flexShrink: 0,
       }}>
         <div style={{
@@ -39,7 +39,7 @@ export function Panel({ title, color, children, stretch, badge }) {
           flexShrink: 0,
         }} />
         <span style={{
-          fontSize: 13, fontWeight: 700, color: "#e2e8f0",
+          fontSize: 13, fontWeight: 700, color: "#0f172a",
           letterSpacing: "0.025em", flex: 1,
         }}>
           {title}
@@ -127,7 +127,7 @@ export default function AdminOverview() {
       margin: -16,
       padding: 16,
       minHeight: "calc(100% + 32px)",
-      background: "linear-gradient(145deg, #0b1929 0%, #0d1e30 50%, #091522 100%)",
+      background: "linear-gradient(145deg, #f8fbff 0%, #eef5ff 50%, #f7fafc 100%)",
       borderRadius: 16,
       boxSizing: "border-box",
       display: "flex",
@@ -141,24 +141,24 @@ export default function AdminOverview() {
       }}>
         <div>
           <h1 style={{
-            margin: 0, fontSize: 19, fontWeight: 800, color: "#e2e8f0",
+            margin: 0, fontSize: 19, fontWeight: 800, color: "#0f172a",
             letterSpacing: "-0.01em",
           }}>
             Genel Bakış
           </h1>
-          <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.38)", marginTop: 2 }}>
+          <p style={{ margin: 0, fontSize: 11, color: "#64748b", marginTop: 2 }}>
             {isBt ? "BT Metrikleri & Canlı Kuyruk" : "Çağrı merkezi anlık durumu"}
             {" · "}15sn'de bir güncellenir
           </p>
         </div>
         <div style={{
           display: "flex", alignItems: "center", gap: 6,
-          background: "rgba(55,138,221,0.1)",
-          border: "1px solid rgba(55,138,221,0.2)",
+          background: "rgba(55,138,221,0.08)",
+          border: "1px solid rgba(55,138,221,0.16)",
           borderRadius: 8, padding: "5px 11px",
         }}>
           <RefreshCw size={11} color="#60a5fa" />
-          <span style={{ fontSize: 11, color: "#93c5fd", fontWeight: 600 }}>
+          <span style={{ fontSize: 11, color: "#2563eb", fontWeight: 600 }}>
             {lastSync ? lastSync.toLocaleTimeString("tr-TR") : "Yükleniyor..."}
           </span>
         </div>

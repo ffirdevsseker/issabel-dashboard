@@ -3,14 +3,14 @@ import { AlertTriangle, Phone, Star, TrendingUp, Wifi } from "lucide-react";
 function MetricCard({ icon: Icon, label, value, sub, color, alarm }) {
   return (
     <div style={{
-      background: "linear-gradient(160deg, #132334 0%, #162c44 100%)",
-      border: `1px solid ${alarm ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.07)"}`,
+      background: "linear-gradient(160deg, #ffffff 0%, #f8fbff 100%)",
+      border: `1px solid ${alarm ? "rgba(239,68,68,0.28)" : "rgba(148,163,184,0.18)"}`,
       borderLeft: `3px solid ${alarm ? "#ef4444" : color}`,
       borderRadius: 14,
       padding: "18px 18px 16px",
       boxShadow: alarm
-        ? "0 0 24px rgba(239,68,68,0.12), 0 6px 24px rgba(0,0,0,0.3)"
-        : "0 6px 24px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05)",
+        ? "0 0 20px rgba(239,68,68,0.08), 0 8px 24px rgba(15,23,42,0.08)"
+        : "0 8px 24px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.75)",
       position: "relative",
       overflow: "hidden",
       transition: "box-shadow 0.3s",
@@ -41,7 +41,7 @@ function MetricCard({ icon: Icon, label, value, sub, color, alarm }) {
             background: `${alarm ? "#ef4444" : color}16`,
             border: `1px solid ${alarm ? "#ef4444" : color}30`,
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: `0 0 12px ${alarm ? "#ef4444" : color}20`,
+            boxShadow: `0 0 10px ${alarm ? "#ef4444" : color}18`,
           }}>
             <Icon size={16} color={alarm ? "#ef4444" : color} />
           </div>
@@ -61,15 +61,15 @@ function MetricCard({ icon: Icon, label, value, sub, color, alarm }) {
           color: alarm ? "#ef4444" : color,
           fontSize: 34, fontWeight: 900, lineHeight: 1, marginBottom: 6,
           fontVariantNumeric: "tabular-nums",
-          textShadow: `0 0 20px ${alarm ? "rgba(239,68,68,0.35)" : `${color}35`}`,
+          textShadow: `0 0 14px ${alarm ? "rgba(239,68,68,0.18)" : `${color}20`}`,
         }}>
           {value ?? "—"}
         </div>
-        <div style={{ color: "#c7d4e4", fontSize: 12, fontWeight: 700, letterSpacing: "0.02em" }}>
+        <div style={{ color: "#334155", fontSize: 12, fontWeight: 700, letterSpacing: "0.02em" }}>
           {label}
         </div>
         {sub && (
-          <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 11, marginTop: 3 }}>
+          <div style={{ color: "#64748b", fontSize: 11, marginTop: 3 }}>
             {sub}
           </div>
         )}
@@ -82,9 +82,9 @@ function SkeletonCard() {
   return (
     <div style={{
       height: 118, borderRadius: 14,
-      background: "linear-gradient(160deg, #132334 0%, #162c44 100%)",
-      border: "1px solid rgba(255,255,255,0.05)",
-      boxShadow: "0 6px 24px rgba(0,0,0,0.2)",
+      background: "linear-gradient(160deg, #ffffff 0%, #f8fbff 100%)",
+      border: "1px solid rgba(148,163,184,0.14)",
+      boxShadow: "0 6px 18px rgba(15,23,42,0.06)",
     }} />
   );
 }

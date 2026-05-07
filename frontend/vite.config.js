@@ -8,6 +8,15 @@ const WS_BACKEND = 'ws://localhost:8000'
 const httpProxy = (target = BACKEND) => ({ target, changeOrigin: true })
 const wsProxy   = (target = WS_BACKEND) => ({ target, ws: true, changeOrigin: true })
 
+// Tarayıcı navigasyonu (Accept: text/html) ise SPA'ya bırak, API isteğiyse backend'e gönder
+const spaAwareProxy = (target = BACKEND) => ({
+  target,
+  changeOrigin: true,
+  bypass: (req) => {
+    if (req.headers.accept?.includes('text/html')) return '/index.html'
+  },
+})
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -20,12 +29,13 @@ export default defineConfig({
     proxy: {
       '/auth':         httpProxy(),
       '/cdr':          httpProxy(),
-      '/supervisor':   httpProxy(),
       '/gamification': httpProxy(),
       '/reports':      httpProxy(),
       '/kb':           httpProxy(),
-      '/admin':        httpProxy(),
       '/health':       httpProxy(),
+      '/dashboard':    httpProxy(),
+      '/admin':        spaAwareProxy(),
+      '/supervisor':   spaAwareProxy(),
       '/ws':           wsProxy(),
     },
   },

@@ -61,6 +61,14 @@ export const adminApi = {
   getAudit: (limit = 100) => api.get(`/admin/audit?limit=${limit}`),
 };
 
+export const dashboardApi = {
+  getSummary:     () => api.get("/dashboard/summary"),
+  getQueueStatus: () => api.get("/dashboard/queue-status"),
+  getAgentStatus: () => api.get("/dashboard/agent-status"),
+  getAlarms:      () => api.get("/dashboard/alarms"),
+  getMetrics:     () => api.get("/dashboard/system-metrics"),
+};
+
 export const authApi = {
   getDashboardLayout: () => api.get("/auth/dashboard-layout"),
 };

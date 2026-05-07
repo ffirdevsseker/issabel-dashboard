@@ -1,17 +1,36 @@
 import { useState } from "react";
-import { Phone, Search, Star } from "lucide-react";
+import { Phone, Search, Star, WifiOff, Coffee } from "lucide-react";
 
 const DURUM = {
-  aktif:   { color: "#34d399", label: "Aktif"   },
-  mesgul:  { color: "#f59e0b", label: "Meşgul"  },
-  mola:    { color: "#a78bfa", label: "Mola"    },
-  offline: { color: "#475569", label: "Offline" },
+  aktif:   { color: "#10b981", bg: "rgba(16,185,129,0.08)",  border: "rgba(16,185,129,0.2)",  label: "Aktif"       },
+  mesgul:  { color: "#3b82f6", bg: "rgba(59,130,246,0.08)",  border: "rgba(59,130,246,0.2)",  label: "Görüşmede"   },
+  mola:    { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.2)",  label: "Mola"        },
+  offline: { color: "#94a3b8", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.2)", label: "Offline"     },
 };
 
-function AgentCard({ agent, isAdmin, onEndBreak }) {
+const UNVAN_STYLE = {
+  "Bronz":  { color: "#92400e", bg: "rgba(146,64,14,0.08)"  },
+  "Gumus":  { color: "#475569", bg: "rgba(71,85,105,0.08)"  },
+  "Altin":  { color: "#d97706", bg: "rgba(217,119,6,0.08)"  },
+  "Platin": { color: "#0891b2", bg: "rgba(8,145,178,0.08)"  },
+};
+
+function StatusDot({ color }) {
+  return (
+    <div style={{
+      width: 7, height: 7, borderRadius: "50%",
+      background: color, flexShrink: 0,
+      boxShadow: `0 0 0 2px ${color}28`,
+    }} />
+  );
+}
+
+function AgentRow({ agent, isAdmin, onEndBreak }) {
   const [busy, setBusy] = useState(false);
-  const d = DURUM[agent.anlik_durum] || DURUM.offline;
+  const d     = DURUM[agent.anlik_durum] || DURUM.offline;
   const alarm = agent.mola_asimi;
+  const sipKopuk = agent.sip_durumu === "koptu";
+  const unvanStyle = UNVAN_STYLE[agent.unvan] || null;
 
   const handleEndBreak = async () => {
     setBusy(true);
@@ -20,184 +39,292 @@ function AgentCard({ agent, isAdmin, onEndBreak }) {
 
   return (
     <div style={{
-      background: alarm
-        ? "linear-gradient(145deg, #fff5f5 0%, #fff1f2 100%)"
-        : "linear-gradient(145deg, #ffffff 0%, #f8fbff 100%)",
-      border: `1px solid ${alarm ? "rgba(239,68,68,0.22)" : "rgba(148,163,184,0.14)"}`,
-      borderRadius: 12,
-      padding: "11px 12px",
-      position: "relative",
-      transition: "box-shadow 0.2s",
-      boxShadow: alarm
-        ? "0 0 14px rgba(239,68,68,0.08), 0 4px 12px rgba(15,23,42,0.06)"
-        : "0 4px 12px rgba(15,23,42,0.06)",
-    }}>
-      {/* Status bar at top */}
-      <div style={{
-        height: 2, borderRadius: 1, marginBottom: 10,
-        background: `linear-gradient(90deg, ${d.color}80, transparent)`,
-        boxShadow: `0 0 6px ${d.color}50`,
-      }} />
-
-      {/* Alarm pulse */}
-      {alarm && (
+      display: "grid",
+      gridTemplateColumns: "1fr 90px 80px 60px 90px",
+      alignItems: "center",
+      padding: "10px 14px",
+      borderRadius: 10,
+      background: alarm ? "rgba(239,68,68,0.025)" : "transparent",
+      border: alarm ? "1px solid rgba(239,68,68,0.12)" : "1px solid transparent",
+      transition: "background 0.15s",
+      cursor: "default",
+    }}
+      onMouseEnter={(e) => {
+        if (!alarm) e.currentTarget.style.background = "rgba(0,0,0,0.02)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = alarm ? "rgba(239,68,68,0.025)" : "transparent";
+      }}
+    >
+      {/* Ad + Dept */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        {/* Avatar */}
         <div style={{
-          position: "absolute", top: 8, right: 8,
-          width: 7, height: 7, borderRadius: "50%",
-          background: "#ef4444",
-          boxShadow: "0 0 8px #ef4444",
-        }} className="pulse-dot" />
-      )}
-
-      <div style={{
-        fontWeight: 700, fontSize: 12, color: "#0f172a",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        paddingRight: alarm ? 16 : 0, marginBottom: 2,
-      }}>
-        {agent.ad_soyad}
+          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+          background: `${d.color}15`,
+          border: `1.5px solid ${d.color}28`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 12, fontWeight: 800, color: d.color,
+        }}>
+          {agent.ad_soyad?.charAt(0).toUpperCase() || "?"}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700, color: "#0f172a",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            {agent.ad_soyad}
+            {alarm && (
+              <span style={{
+                fontSize: 9, fontWeight: 800, letterSpacing: "0.04em",
+                color: "#ef4444", background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                borderRadius: 5, padding: "1px 5px", flexShrink: 0,
+              }}>
+                AŞIM
+              </span>
+            )}
+            {sipKopuk && (
+              <WifiOff size={9} color="#ef4444" style={{ flexShrink: 0 }} />
+            )}
+          </div>
+          <div style={{
+            fontSize: 11, color: "#94a3b8", fontWeight: 500,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {agent.departman_adi || "—"}
+            {agent.dahili_no ? ` · ${agent.dahili_no}` : ""}
+          </div>
+        </div>
       </div>
-      <div style={{
-        fontSize: 10, color: "#64748b",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        marginBottom: 8,
-      }}>
-        {agent.departman_adi || "—"}
+
+      {/* Durum */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <StatusDot color={d.color} />
+        <div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: d.color }}>
+            {d.label}
+          </div>
+          {agent.anlik_durum === "mola" && agent.mola_sure_dk > 0 && (
+            <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500 }}>
+              {agent.mola_sure_dk}dk
+              {agent.planlanan_sure_dk > 0 && ` / ${agent.planlanan_sure_dk}dk`}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Durum pill */}
+      {/* Çağrı */}
       <div style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        background: `${d.color}14`,
-        border: `1px solid ${d.color}28`,
-        borderRadius: 999, padding: "2px 7px",
-        marginBottom: 8,
+        display: "flex", alignItems: "center", gap: 5,
+        fontSize: 13, fontWeight: 700, color: "#0f172a",
       }}>
-        <div style={{
-          width: 5, height: 5, borderRadius: "50%",
-          background: d.color, boxShadow: `0 0 4px ${d.color}`,
-        }} />
-        <span style={{ fontSize: 10, fontWeight: 700, color: d.color }}>{d.label}</span>
-        {agent.anlik_durum === "mola" && agent.mola_tipi && (
-          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>· {agent.mola_sure_dk}dk</span>
+        <Phone size={11} color="#94a3b8" />
+        {agent.bugun_toplam_cagri}
+      </div>
+
+      {/* CSAT */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 4,
+        fontSize: 12, fontWeight: 700,
+        color: agent.bugun_ort_csat >= 4 ? "#10b981"
+             : agent.bugun_ort_csat >= 3 ? "#f59e0b"
+             : agent.bugun_ort_csat > 0  ? "#ef4444"
+             : "#cbd5e1",
+      }}>
+        {agent.bugun_ort_csat > 0 ? (
+          <>
+            <Star size={10} fill="currentColor" color="currentColor" />
+            {agent.bugun_ort_csat.toFixed(1)}
+          </>
+        ) : (
+          <span style={{ color: "#e2e8f0" }}>—</span>
         )}
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "flex", gap: 8 }}>
-        <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 10, color: "#64748b" }}>
-          <Phone size={9} color="#378ADD" /> {agent.bugun_toplam_cagri}
-        </span>
-        {agent.bugun_ort_csat > 0 && (
-          <span style={{ display: "flex", alignItems: "center", gap: 2, fontSize: 10, color: "#f59e0b" }}>
-            <Star size={9} fill="#f59e0b" color="#f59e0b" /> {agent.bugun_ort_csat.toFixed(1)}
+      {/* Aksiyonlar / Unvan */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        {unvanStyle && agent.unvan && (
+          <span style={{
+            fontSize: 9.5, fontWeight: 800, letterSpacing: "0.02em",
+            color: unvanStyle.color, background: unvanStyle.bg,
+            borderRadius: 5, padding: "2px 6px",
+          }}>
+            {agent.unvan.toUpperCase()}
           </span>
         )}
+        {alarm && isAdmin && (
+          <button
+            onClick={handleEndBreak}
+            disabled={busy}
+            style={{
+              display: "flex", alignItems: "center", gap: 4,
+              background: "#fff",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: 6, padding: "4px 9px",
+              color: "#dc2626", fontSize: 10, fontWeight: 700,
+              cursor: busy ? "not-allowed" : "pointer",
+              opacity: busy ? 0.5 : 1, transition: "all 0.15s",
+            }}
+          >
+            <Coffee size={9} color="#dc2626" />
+            {busy ? "..." : "Bitir"}
+          </button>
+        )}
       </div>
-
-      {alarm && isAdmin && (
-        <button
-          onClick={handleEndBreak}
-          disabled={busy}
-          style={{
-            marginTop: 9, width: "100%",
-            background: busy ? "transparent" : "rgba(239,68,68,0.08)",
-            border: "1px solid rgba(239,68,68,0.24)",
-            borderRadius: 6, padding: "4px 0",
-            color: "#dc2626", fontSize: 10, fontWeight: 700,
-            cursor: busy ? "not-allowed" : "pointer",
-            opacity: busy ? 0.5 : 1,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {busy ? "..." : "Molayı Bitir"}
-        </button>
-      )}
     </div>
   );
 }
 
+/* ─── Tablo header ──────────────────────────────────────────────────────────── */
+function TableHeader() {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 90px 80px 60px 90px",
+      padding: "0 14px 8px",
+      borderBottom: "1px solid rgba(0,0,0,0.06)",
+      marginBottom: 4,
+    }}>
+      {["Personel", "Durum", "Çağrı", "CSAT", ""].map((col) => (
+        <span key={col} style={{
+          fontSize: 11, fontWeight: 600, color: "#94a3b8",
+          textTransform: "uppercase", letterSpacing: "0.05em",
+        }}>
+          {col}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Filter chips ──────────────────────────────────────────────────────────── */
+function FilterChip({ label, count, color, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      display: "flex", alignItems: "center", gap: 5,
+      padding: "4px 11px", borderRadius: 999,
+      border: `1.5px solid ${active ? color : "rgba(0,0,0,0.08)"}`,
+      background: active ? `${color}0e` : "#ffffff",
+      color: active ? color : "#64748b",
+      fontSize: 11.5, fontWeight: 700,
+      cursor: "pointer", transition: "all 0.15s",
+    }}>
+      {color !== "tumu" && (
+        <div style={{
+          width: 5, height: 5, borderRadius: "50%",
+          background: active ? color : "#cbd5e1",
+        }} />
+      )}
+      {label}
+      <span style={{
+        fontSize: 10.5, fontWeight: 800,
+        background: active ? `${color}18` : "rgba(0,0,0,0.06)",
+        color: active ? color : "#94a3b8",
+        borderRadius: 999, padding: "0 5px",
+      }}>
+        {count}
+      </span>
+    </button>
+  );
+}
+
+/* ─── Export ────────────────────────────────────────────────────────────────── */
 export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
-  const [search, setSearch] = useState("");
+  const [search,      setSearch]      = useState("");
   const [durumFilter, setDurumFilter] = useState("tumu");
 
-  const filtered = (agents || []).filter((a) => {
+  const list = agents || [];
+
+  const counts = {
+    aktif:   list.filter((a) => a.anlik_durum === "aktif").length,
+    mesgul:  list.filter((a) => a.anlik_durum === "mesgul").length,
+    mola:    list.filter((a) => a.anlik_durum === "mola").length,
+    offline: list.filter((a) => a.anlik_durum === "offline").length,
+  };
+
+  const filtered = list.filter((a) => {
     const q = search.toLowerCase();
-    const nameMatch = !q || a.ad_soyad?.toLowerCase().includes(q) || a.departman_adi?.toLowerCase().includes(q);
-    const durumMatch = durumFilter === "tumu" || a.anlik_durum === durumFilter;
-    return nameMatch && durumMatch;
+    const match = !q
+      || a.ad_soyad?.toLowerCase().includes(q)
+      || a.departman_adi?.toLowerCase().includes(q)
+      || a.ekip_adi?.toLowerCase().includes(q)
+      || a.dahili_no?.includes(q);
+    return match && (durumFilter === "tumu" || a.anlik_durum === durumFilter);
   });
 
+  const CHIPS = [
+    { key: "tumu",    label: "Tümü",      color: "#64748b", count: list.length   },
+    { key: "aktif",   label: "Aktif",     color: "#10b981", count: counts.aktif  },
+    { key: "mesgul",  label: "Görüşmede", color: "#3b82f6", count: counts.mesgul },
+    { key: "mola",    label: "Mola",      color: "#f59e0b", count: counts.mola   },
+    { key: "offline", label: "Offline",   color: "#94a3b8", count: counts.offline },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 12 }}>
+
       {/* Toolbar */}
-      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-        <div style={{ position: "relative", flex: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
+        {CHIPS.map(({ key, label, color, count }) => (
+          <FilterChip
+            key={key}
+            label={label}
+            count={count}
+            color={key === "tumu" ? "#64748b" : DURUM[key]?.color || "#64748b"}
+            active={durumFilter === key}
+            onClick={() => setDurumFilter(key)}
+          />
+        ))}
+
+        {/* Arama */}
+        <div style={{ position: "relative", marginLeft: "auto" }}>
           <Search size={12} style={{
             position: "absolute", left: 9, top: "50%",
-            transform: "translateY(-50%)", color: "#94a3b8",
-            pointerEvents: "none",
+            transform: "translateY(-50%)", color: "#94a3b8", pointerEvents: "none",
           }} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Personel ara..."
+            placeholder="Ad, dahili, dept..."
             style={{
-              width: "100%", height: 32, paddingLeft: 28, paddingRight: 10,
-              background: "#ffffff",
-              border: "1px solid rgba(148,163,184,0.16)",
-              borderRadius: 8, color: "#0f172a", fontSize: 12, outline: "none",
-              boxSizing: "border-box",
+              height: 32, paddingLeft: 28, paddingRight: 12, width: 170,
+              background: "#f8fafc",
+              border: "1px solid rgba(0,0,0,0.08)",
+              borderRadius: 8, color: "#0f172a", fontSize: 12,
+              outline: "none", boxSizing: "border-box",
+              transition: "border-color 0.15s",
             }}
+            onFocus={(e) => e.target.style.borderColor = "rgba(59,130,246,0.4)"}
+            onBlur={(e) => e.target.style.borderColor = "rgba(0,0,0,0.08)"}
           />
         </div>
-        <select
-          value={durumFilter}
-          onChange={(e) => setDurumFilter(e.target.value)}
-          style={{
-            height: 32, padding: "0 8px",
-            background: "#ffffff",
-            border: "1px solid rgba(148,163,184,0.16)",
-            borderRadius: 8, color: "#0f172a", fontSize: 11, outline: "none", cursor: "pointer",
-          }}
-        >
-          <option value="tumu">Tümü</option>
-          <option value="aktif">Aktif</option>
-          <option value="mesgul">Meşgul</option>
-          <option value="mola">Mola</option>
-          <option value="offline">Offline</option>
-        </select>
-        <span style={{
-          fontSize: 11, color: "#64748b",
-          alignSelf: "center", whiteSpace: "nowrap",
-        }}>
-          {filtered.length} kişi
-        </span>
       </div>
 
-      {/* 4-column card grid — fills remaining height */}
-      <div style={{
-        flex: 1,
-        overflowY: "auto",
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 8,
-        alignContent: "start",
-        paddingRight: 2,
-      }}>
-        {filtered.length === 0 ? (
-          <div style={{
-            gridColumn: "1 / -1",
-            textAlign: "center",
-            color: "#94a3b8",
-            fontSize: 13, padding: "32px 0",
-          }}>
-            Sonuç bulunamadı
-          </div>
-        ) : (
-          filtered.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} isAdmin={isAdmin} onEndBreak={onEndBreak} />
-          ))
-        )}
+      {/* Tablo */}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+        <TableHeader />
+
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+          {filtered.length === 0 ? (
+            <div style={{
+              textAlign: "center", color: "#94a3b8",
+              fontSize: 13, padding: "40px 0",
+            }}>
+              {search ? `"${search}" için sonuç bulunamadı` : "Personel bulunamadı"}
+            </div>
+          ) : (
+            filtered.map((agent) => (
+              <AgentRow
+                key={agent.id}
+                agent={agent}
+                isAdmin={isAdmin}
+                onEndBreak={onEndBreak}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

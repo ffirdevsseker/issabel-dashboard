@@ -62,16 +62,18 @@ export const adminApi = {
 };
 
 export const dashboardApi = {
-  getSummary:     () => api.get("/dashboard/summary"),
-  getQueueStatus: () => api.get("/dashboard/queue-status"),
-  getAgentStatus: () => api.get("/dashboard/agent-status"),
-  getAlarms:      () => api.get("/dashboard/alarms"),
-  getMetrics:     () => api.get("/dashboard/system-metrics"),
-  getAgents:      () => api.get("/dashboard/agents"),
-  getQueueLive:   () => api.get("/dashboard/queue-live"),
-  getAiFeed:      () => api.get("/dashboard/ai-feed"),
-  getIssues:      () => api.get("/dashboard/issues"),
-  endBreak:       (userId) => api.post("/dashboard/actions/end-break", { user_id: userId }),
+  getHeaderStats:   () => api.get("/dashboard/header-stats"),
+  getSummary:       () => api.get("/dashboard/summary"),
+  getQueueStatus:   () => api.get("/dashboard/queue-status"),
+  getAgentStatus:   () => api.get("/dashboard/agent-status"),
+  getAlarms:        () => api.get("/dashboard/alarms"),
+  getMetrics:       () => api.get("/dashboard/system-metrics"),
+  getAgents:        () => api.get("/dashboard/agents"),
+  getQueueLive:     () => api.get("/dashboard/queue-live"),
+  getAiFeed:        () => api.get("/dashboard/ai-feed"),
+  getIssues:        () => api.get("/dashboard/issues"),
+  getTrafficHourly: () => api.get("/dashboard/traffic-hourly"),
+  endBreak:         (userId) => api.post("/dashboard/actions/end-break", { user_id: userId }),
 };
 
 export const authApi = {

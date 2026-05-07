@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
 class CDRRead(BaseModel):
-    id: str
+    id: UUID
     baslangic_zamani: datetime
     bitis_zamani: Optional[datetime]
     durum: str

@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, cast, String
 
 from app.models.cdr import CDR
 
@@ -33,7 +33,7 @@ async def get_call_stats(db: AsyncSession, user_id=None, extension: Optional[str
     total = (await db.execute(stmt_total)).scalar() or 0
 
     async def _count_by_durum(durum_val: str) -> int:
-        stmt = select(func.count(CDR.id)).where(CDR.durum == durum_val)
+        stmt = select(func.count(CDR.id)).where(cast(CDR.durum, String) == durum_val)
         stmt = _apply_user_filter(stmt, user_id)
         return (await db.execute(stmt)).scalar() or 0
 

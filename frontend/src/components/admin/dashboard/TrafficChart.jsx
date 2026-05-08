@@ -1,11 +1,12 @@
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
+  Tooltip, ResponsiveContainer, ReferenceArea,
 } from "recharts";
 import { Phone, PhoneCall, PhoneMissed } from "lucide-react";
 
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, mesaiDisiSaatler }) {
   if (!active || !payload?.length) return null;
+  const isMesaiDisi = mesaiDisiSaatler?.has(label);
   return (
     <div style={{
       background: "#ffffff",
@@ -14,8 +15,21 @@ function CustomTooltip({ active, payload, label }) {
       boxShadow: "0 8px 24px rgba(15,23,42,0.1)",
       fontSize: 12,
     }}>
-      <div style={{ fontWeight: 700, color: "#0f172a", marginBottom: 7, fontSize: 11 }}>
+      <div style={{
+        fontWeight: 700, color: "#0f172a", marginBottom: 7,
+        fontSize: 11, display: "flex", alignItems: "center", gap: 5,
+      }}>
         {label}
+        {isMesaiDisi && (
+          <span style={{
+            fontSize: 8.5, fontWeight: 700,
+            background: "rgba(99,102,241,0.08)",
+            border: "1px solid rgba(99,102,241,0.2)",
+            color: "#6366f1", borderRadius: 99, padding: "1px 5px",
+          }}>
+            Mesai Dışı
+          </span>
+        )}
       </div>
       {payload.map((p) => (
         <div key={p.dataKey} style={{
@@ -34,8 +48,8 @@ function CustomTooltip({ active, payload, label }) {
 }
 
 const STAT_DEFS = [
-  { key: "toplam",     label: "Toplam",     color: "#378ADD", Icon: Phone      },
-  { key: "cevaplanan", label: "Cevaplanan", color: "#10b981", Icon: PhoneCall  },
+  { key: "toplam",     label: "Toplam",     color: "#378ADD", Icon: Phone       },
+  { key: "cevaplanan", label: "Cevaplanan", color: "#10b981", Icon: PhoneCall   },
   { key: "kacan",      label: "Kaçan",      color: "#ef4444", Icon: PhoneMissed },
 ];
 
@@ -43,13 +57,34 @@ export default function TrafficChart({ data }) {
   if (!data?.length) {
     return (
       <div style={{
-        height: 180, display: "flex", alignItems: "center", justifyContent: "center",
+        height: 200, display: "flex", alignItems: "center", justifyContent: "center",
         color: "#94a3b8", fontSize: 13,
       }}>
         Bugün için trafik verisi yok
       </div>
     );
   }
+
+  // Mesai dışı saatleri set olarak tut (tooltip için)
+  const mesaiDisiSaatler = new Set(
+    data.filter((d) => d.mesai_disi).map((d) => d.saat)
+  );
+
+  // Mesai dışı aralıkları bul (ardışık gruplar → ReferenceArea)
+  const mesaiDisiAraliklari = [];
+  let aStart = null;
+  data.forEach((d, i) => {
+    if (d.mesai_disi && aStart === null) {
+      aStart = d.saat;
+    }
+    if (!d.mesai_disi && aStart !== null) {
+      mesaiDisiAraliklari.push({ x1: aStart, x2: data[i - 1].saat });
+      aStart = null;
+    }
+    if (i === data.length - 1 && aStart !== null) {
+      mesaiDisiAraliklari.push({ x1: aStart, x2: d.saat });
+    }
+  });
 
   const totals = data.reduce(
     (acc, d) => ({
@@ -99,6 +134,7 @@ export default function TrafficChart({ data }) {
             </div>
           </div>
         ))}
+
         {/* Cevaplama oranı */}
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -133,7 +169,7 @@ export default function TrafficChart({ data }) {
       </div>
 
       {/* Grafik */}
-      <div style={{ height: 180 }}>
+      <div style={{ height: 200 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
             <defs>
@@ -150,6 +186,19 @@ export default function TrafficChart({ data }) {
                 <stop offset="95%" stopColor="#378ADD" stopOpacity={0.01} />
               </linearGradient>
             </defs>
+
+            {/* Mesai dışı arka plan bölgeleri */}
+            {mesaiDisiAraliklari.map(({ x1, x2 }, i) => (
+              <ReferenceArea
+                key={i}
+                x1={x1}
+                x2={x2}
+                fill="rgba(99,102,241,0.05)"
+                stroke="rgba(99,102,241,0.12)"
+                strokeWidth={0.5}
+                label={i === 0 ? { value: "Mesai Dışı", position: "insideTopLeft", fontSize: 9, fill: "#6366f1", fontWeight: 600 } : undefined}
+              />
+            ))}
 
             <CartesianGrid
               strokeDasharray="3 3"
@@ -170,7 +219,7 @@ export default function TrafficChart({ data }) {
               allowDecimals={false}
             />
             <Tooltip
-              content={<CustomTooltip />}
+              content={<CustomTooltip mesaiDisiSaatler={mesaiDisiSaatler} />}
               cursor={{ stroke: "rgba(148,163,184,0.25)", strokeWidth: 1 }}
             />
 
@@ -210,21 +259,30 @@ export default function TrafficChart({ data }) {
       </div>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 14, justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
         {[
-          { color: "#378ADD", label: "Toplam",     dash: true  },
-          { color: "#10b981", label: "Cevaplanan", dash: false },
-          { color: "#ef4444", label: "Kaçan",      dash: false },
-        ].map(({ color, label, dash }) => (
+          { color: "#378ADD", label: "Toplam",        dash: true  },
+          { color: "#10b981", label: "Cevaplanan",    dash: false },
+          { color: "#ef4444", label: "Kaçan",         dash: false },
+          { color: "#6366f1", label: "Mesai Dışı (arka plan)", dash: false, rect: true },
+        ].map(({ color, label, dash, rect }) => (
           <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <svg width="18" height="8">
-              <line
-                x1="0" y1="4" x2="18" y2="4"
-                stroke={color}
-                strokeWidth={dash ? 1.5 : 2}
-                strokeDasharray={dash ? "4 2" : "0"}
-              />
-            </svg>
+            {rect ? (
+              <div style={{
+                width: 14, height: 8, borderRadius: 2,
+                background: "rgba(99,102,241,0.1)",
+                border: "1px solid rgba(99,102,241,0.25)",
+              }} />
+            ) : (
+              <svg width="18" height="8">
+                <line
+                  x1="0" y1="4" x2="18" y2="4"
+                  stroke={color}
+                  strokeWidth={dash ? 1.5 : 2}
+                  strokeDasharray={dash ? "4 2" : "0"}
+                />
+              </svg>
+            )}
             <span style={{ fontSize: 10.5, color: "#64748b", fontWeight: 600 }}>{label}</span>
           </div>
         ))}

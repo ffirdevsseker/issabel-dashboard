@@ -106,6 +106,12 @@ export const dashboardApi = {
   endBreak:         (userId) => api.post("/dashboard/actions/end-break", { user_id: userId }),
 };
 
+export const overviewApi = {
+  getCommand:    ()              => api.get("/admin/overview/command"),
+  getHourly:     ()              => api.get("/admin/overview/hourly"),
+  getMissedCalls: (limit = 20)  => api.get("/admin/overview/missed-calls", { params: { limit } }),
+};
+
 export const headerApi = {
   getLive:           ()             => api.get("/admin/header/live"),
   getCriticalAlerts: (limit = 20)   => api.get("/admin/header/critical-alerts", { params: { limit } }),

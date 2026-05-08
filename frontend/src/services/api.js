@@ -118,6 +118,16 @@ export const headerApi = {
   search:            (q, limit = 5) => api.get("/admin/header/search", { params: { q, limit } }),
 };
 
+/* ─── Admin · Canlı Operasyon War Room ────────────────────────────────────────
+   Endpoint prefix: /admin/war-room                                             */
+export const warRoomApi = {
+  getActiveCalls:  ()               => api.get("/admin/war-room/active-calls"),
+  getQueues:       ()               => api.get("/admin/war-room/queues"),
+  getStaff:        ()               => api.get("/admin/war-room/staff"),
+  callAction:      (callId, body)   => api.post(`/admin/war-room/action/${callId}`, body),
+  updateCapacity:  (queueId, cap)   => api.patch(`/admin/war-room/queues/${queueId}/capacity`, { max_kapasite: cap }),
+};
+
 export const authApi = {
   getDashboardLayout: () => api.get("/auth/dashboard-layout"),
 };

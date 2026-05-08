@@ -81,7 +81,7 @@ function SkeletonCard() {
 }
 
 /* ─── Tek hero kart ─────────────────────────────────────────────────────────── */
-function HeroCard({ children, alarm, accent = "#3b82f6" }) {
+function HeroCard({ children, alarm, accent = "#3b82f6", noBadge }) {
   return (
     <div style={{
       background:   "#fff",
@@ -106,7 +106,7 @@ function HeroCard({ children, alarm, accent = "#3b82f6" }) {
           : `linear-gradient(90deg,${accent},${accent}44)`,
         borderRadius: "18px 18px 0 0",
       }} />
-      {alarm && (
+      {alarm && !noBadge && (
         <div style={{
           position: "absolute", top: 12, right: 14,
           fontSize: 9, fontWeight: 800, letterSpacing: "0.05em",
@@ -190,12 +190,24 @@ function SlaCard({ d }) {
   const color = alarm ? "#ef4444" : pct >= 80 ? "#10b981" : pct >= 60 ? "#f59e0b" : "#ef4444";
 
   return (
-    <HeroCard alarm={alarm} accent={color}>
+    <HeroCard alarm={alarm} accent={color} noBadge>
       <div style={{ padding: "18px 20px 20px", flex: 1 }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-              SLA Karşılama
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                SLA Karşılama
+              </span>
+              {alarm && (
+                <span style={{
+                  fontSize: 9, fontWeight: 800, letterSpacing: "0.05em",
+                  color: "#ef4444", background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(239,68,68,0.2)",
+                  borderRadius: 6, padding: "2px 7px",
+                }}>
+                  ALARM
+                </span>
+              )}
             </div>
             <div style={{
               fontSize: 34, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em",

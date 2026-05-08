@@ -128,6 +128,14 @@ export const warRoomApi = {
   updateCapacity:  (queueId, cap)   => api.patch(`/admin/war-room/queues/${queueId}/capacity`, { max_kapasite: cap }),
 };
 
+/* ─── Staff · Personel Yönetim Merkezi ────────────────────────────────────────
+   Endpoint prefix: /staff  (Müşteri Hizmetleri – light theme sayfası)          */
+export const staffApi = {
+  getMatrix:     ()          => api.get("/staff/matrix"),
+  getAttendance: (week)      => api.get("/staff/attendance", { params: { week: week ?? "current" } }),
+  updateRole:    (id, body)  => api.put(`/staff/${id}/role`, body),
+};
+
 export const authApi = {
   getDashboardLayout: () => api.get("/auth/dashboard-layout"),
 };

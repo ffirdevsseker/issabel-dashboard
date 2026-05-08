@@ -9,7 +9,7 @@ Her rol kendi paketinde / dosyasında. Yeni endpoint açarken:
 """
 from fastapi import APIRouter
 
-from app.api import auth, cdr, queue, gamification, reports, dashboard
+from app.api import auth, cdr, queue, gamification, reports, dashboard, staff
 from app.api.agent import router as agent_router
 from app.api.supervisor import router as supervisor_router
 from app.api.admin import router as admin_router
@@ -24,3 +24,4 @@ api_router.include_router(dashboard.router)
 api_router.include_router(agent_router)
 api_router.include_router(supervisor_router)
 api_router.include_router(admin_router)
+api_router.include_router(staff.router)   # /staff/* — Personel Yönetim Merkezi

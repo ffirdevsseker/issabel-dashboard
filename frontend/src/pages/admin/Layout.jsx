@@ -26,9 +26,9 @@ import { headerApi } from "@/services/api";
 import logoCompact from "@/assets/logo2.png";
 
 const ADMIN_NAV = [
-  { label: "Genel Bakış",      to: "/admin",            icon: LayoutDashboard },
-  { label: "Personel",         to: "/admin/personnel",  icon: Users           },
-  { label: "Canlı Operasyon",  to: "/admin/operations", icon: Radio           },
+  { label: "Genel Bakış",     to: "/admin",            icon: LayoutDashboard },
+  { label: "Personel",        to: "/admin/personnel",  icon: Users           },
+  { label: "Canlı Operasyon", to: "/admin/operations", icon: Radio           },
 ];
 
 // Sağlık renkleri

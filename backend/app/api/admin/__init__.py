@@ -10,10 +10,12 @@ Geriye uyumluluk: from app.api.admin import router  hâlâ çalışır.
 """
 from fastapi import APIRouter
 
-from app.api.admin import core, personnel
+from app.api.admin import core, personnel, operations, header
 
 router = APIRouter()
 router.include_router(core.router)
 router.include_router(personnel.router)
+router.include_router(operations.router)
+router.include_router(header.router)
 
 __all__ = ["router"]

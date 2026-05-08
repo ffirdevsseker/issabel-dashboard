@@ -17,6 +17,7 @@ import AdminLayout from "@/pages/admin/Layout";
 import AdminOverview from "@/pages/admin/Overview";
 import PersonnelPage from "@/pages/admin/Personnel";
 import PersonnelDetailPage from "@/pages/admin/PersonnelDetail";
+import OperationsPage from "@/pages/admin/Operations";
 
 
 import SupervisorLayout from "@/pages/supervisor/Layout";
@@ -87,6 +88,7 @@ export default function App() {
             <Route index                element={<AdminOverview />} />
             <Route path="personnel"     element={<PersonnelPage />} />
             <Route path="personnel/:id" element={<PersonnelDetailPage />} />
+            <Route path="operations"    element={<OperationsPage />} />
           </Route>
         </Routes>
       </CallProvider>

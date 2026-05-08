@@ -39,6 +39,27 @@ ADMIN = require_admin
 # ─── Sayfa kapsamı: hangi departman izlenecek (Müşteri Hizmetleri) ──────────
 DEPARTMENT_FILTER_NAME = "Müşteri Hizmetleri"
 
+# Bu sayfada gösterilen roller — backend hard-limit
+SCOPE_ROLES = ("personel", "supervisor")
+
+# "MH kapsamındaki kullanıcı" SQL koşulu:
+#   · departman_id doğrudan Müşteri Hizmetleri  (personeller, MH'a bağlı supervizörler)
+#   · VEYA supervisor_ekip üzerinden MH'a ait bir ekibi yönetiyor (dış supervizörler)
+#   · VEYA rolü supervisor + tüm MH ekiplerini görmek istiyoruz (ekip ataması yoksa bile)
+MH_SCOPE_CLAUSE = """
+    (
+        d.ad = :dept
+        OR EXISTS (
+            SELECT 1
+            FROM supervisor_ekip se
+            JOIN ekipler          ek ON ek.id = se.ekip_id
+            JOIN departmanlar     dd ON dd.id = ek.departman_id
+            WHERE se.supervisor_id = u.id
+              AND dd.ad = :dept
+        )
+    )
+"""
+
 
 # ═══════════════════════════ Pydantic ════════════════════════════════════════
 
@@ -102,7 +123,7 @@ async def get_filters(
     db: AsyncSession = Depends(get_async_db),
     _:  User = Depends(ADMIN),
 ):
-    """Sadece Müşteri Hizmetleri departmanına ait ekipler + tüm roller."""
+    """Sadece Müşteri Hizmetleri ekipleri + sayfa kapsamındaki roller (personel, supervisor)."""
     teams = (await db.execute(
         text("""
             SELECT e.id::text, e.ad
@@ -114,7 +135,13 @@ async def get_filters(
         {"dept": DEPARTMENT_FILTER_NAME},
     )).fetchall()
     roles = (await db.execute(
-        text("SELECT id, ad FROM roller ORDER BY ad")
+        text("""
+            SELECT id, ad FROM roller
+            WHERE LOWER(ad) = ANY(:roles)
+            ORDER BY
+                CASE LOWER(ad) WHEN 'supervisor' THEN 1 WHEN 'personel' THEN 2 ELSE 3 END
+        """),
+        {"roles": list(SCOPE_ROLES)},
     )).fetchall()
     return {
         "ekipler": [{"id": r.id, "ad": r.ad} for r in teams],
@@ -129,8 +156,8 @@ async def get_stats(
     db: AsyncSession = Depends(get_async_db),
     _:  User = Depends(ADMIN),
 ):
-    """Müşteri Hizmetleri personeli durum dağılımı."""
-    row = (await db.execute(text("""
+    """Müşteri Hizmetleri kapsamı (personel + MH supervizörleri) durum dağılımı."""
+    row = (await db.execute(text(f"""
         SELECT
             COUNT(*)                                                                 AS toplam,
             COUNT(*) FILTER (WHERE COALESCE(vp.anlik_durum::text,'offline')='aktif')   AS aktif,
@@ -140,11 +167,16 @@ async def get_stats(
             COUNT(*) FILTER (WHERE COALESCE(vp.mola_asimi,FALSE) = TRUE)               AS mola_asimi,
             COUNT(*) FILTER (WHERE vp.sip_durumu::text = 'koptu')                      AS sip_kopuk
         FROM kullanicilar u
+        LEFT JOIN roller           r  ON r.id = u.rol_id
         LEFT JOIN departmanlar     d  ON d.id = u.departman_id
         LEFT JOIN v_personel_anlik vp ON vp.id = u.id
         WHERE u.silindi_mi = FALSE
-          AND d.ad = :dept
-    """), {"dept": DEPARTMENT_FILTER_NAME})).fetchone()
+          AND LOWER(r.ad) = ANY(:scope_roles)
+          AND {MH_SCOPE_CLAUSE}
+    """), {
+        "dept": DEPARTMENT_FILTER_NAME,
+        "scope_roles": list(SCOPE_ROLES),
+    })).fetchone()
 
     if not row:
         return {"toplam": 0, "aktif": 0, "mesgul": 0, "mola": 0,
@@ -179,15 +211,30 @@ async def list_personnel(
     Müşteri Hizmetleri personelinin master listesi.
     Mola aşımı yapanlar liste başında.
     """
-    conds:  list[str] = ["u.silindi_mi = FALSE", "d.ad = :dept"]
+    conds:  list[str] = [
+        "u.silindi_mi = FALSE",
+        "LOWER(r.ad) = ANY(:scope_roles)",
+        MH_SCOPE_CLAUSE.strip(),
+    ]
     params: dict = {
         "lim": per_page,
         "off": (page - 1) * per_page,
         "dept": DEPARTMENT_FILTER_NAME,
+        "scope_roles": list(SCOPE_ROLES),
     }
 
+    # Ekip filtresi: hem direkt ekip üyesi hem ekibi yöneten supervisor
     if ekip_id:
-        conds.append("u.ekip_id = :ekip_id::uuid")
+        conds.append("""
+            (
+                u.ekip_id = :ekip_id::uuid
+                OR EXISTS (
+                    SELECT 1 FROM supervisor_ekip se2
+                    WHERE se2.supervisor_id = u.id
+                      AND se2.ekip_id = :ekip_id::uuid
+                )
+            )
+        """)
         params["ekip_id"] = ekip_id
     if rol_id is not None:
         conds.append("u.rol_id = :rol_id")
@@ -213,8 +260,20 @@ async def list_personnel(
             u.kullanici_adi,
             u.dahili_no,
             r.ad                                                    AS rol,
-            e.ad                                                    AS ekip,
-            d.ad                                                    AS departman,
+            -- Personel için kendi ekibi; supervisor için yönettiği ilk MH ekibi
+            COALESCE(
+                e.ad,
+                (
+                    SELECT ek2.ad
+                    FROM supervisor_ekip se3
+                    JOIN ekipler         ek2 ON ek2.id = se3.ekip_id
+                    JOIN departmanlar    dd2 ON dd2.id = ek2.departman_id
+                    WHERE se3.supervisor_id = u.id AND dd2.ad = :dept
+                    ORDER BY ek2.ad
+                    LIMIT 1
+                )
+            )                                                       AS ekip,
+            COALESCE(d.ad, :dept)                                   AS departman,
             COALESCE(vp.anlik_durum::text, 'offline')               AS anlik_durum,
             CASE
                 WHEN COALESCE(vp.mola_asimi, FALSE)
@@ -237,7 +296,10 @@ async def list_personnel(
         LEFT JOIN v_personel_anlik  vp ON vp.id = u.id
         WHERE {where}
         ORDER BY
+            -- Mola aşımı en üstte
             CASE WHEN COALESCE(vp.mola_asimi, FALSE) THEN 0 ELSE 1 END,
+            -- Supervizörler personellerden önce
+            CASE LOWER(r.ad) WHEN 'supervisor' THEN 0 ELSE 1 END,
             CASE COALESCE(vp.anlik_durum::text,'offline')
                 WHEN 'aktif'  THEN 1
                 WHEN 'mesgul' THEN 2
@@ -295,8 +357,19 @@ async def get_details(
             u.kullanici_adi,
             u.dahili_no,
             r.ad                                                    AS rol,
-            e.ad                                                    AS ekip,
-            d.ad                                                    AS departman,
+            COALESCE(
+                e.ad,
+                (
+                    SELECT ek2.ad
+                    FROM supervisor_ekip se3
+                    JOIN ekipler         ek2 ON ek2.id = se3.ekip_id
+                    JOIN departmanlar    dd2 ON dd2.id = ek2.departman_id
+                    WHERE se3.supervisor_id = u.id AND dd2.ad = :dept
+                    ORDER BY ek2.ad
+                    LIMIT 1
+                )
+            )                                                       AS ekip,
+            COALESCE(d.ad, :dept)                                   AS departman,
             COALESCE(u.xp, 0)                                       AS xp,
             COALESCE(u.seviye, 1)                                   AS seviye,
             u.unvan,
@@ -317,7 +390,7 @@ async def get_details(
         LEFT JOIN departmanlar      d  ON d.id = u.departman_id
         LEFT JOIN v_personel_anlik  vp ON vp.id = u.id
         WHERE u.id = :uid::uuid AND u.silindi_mi = FALSE
-    """), {"uid": user_id})).fetchone()
+    """), {"uid": user_id, "dept": DEPARTMENT_FILTER_NAME})).fetchone()
 
     if not p:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Personel bulunamadı")

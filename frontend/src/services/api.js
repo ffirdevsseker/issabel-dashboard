@@ -61,6 +61,19 @@ export const adminApi = {
   getAudit:       (limit = 100) => api.get(`/admin/audit?limit=${limit}`),
 };
 
+/* ─── Admin · Operasyon Komuta Merkezi ────────────────────────────────────────
+   Endpoint prefix: /admin/operations                                            */
+export const operationsApi = {
+  getSummary:        ()      => api.get("/admin/operations/summary"),
+  getSupervisors:    ()      => api.get("/admin/operations/supervisors"),
+  getTeamComparison: ()      => api.get("/admin/operations/team-comparison"),
+  getCrisisRadar:    (limit) => api.get("/admin/operations/crisis-radar", { params: { limit } }),
+  getAuditLogs:      (params)=> api.get("/admin/operations/audit-logs", { params }),
+  sendTalimat:       (body)  => api.post("/admin/operations/talimat", body),
+  overridePending:   (body)  => api.post("/admin/operations/override-pending", body),
+  flagTraining:      (body)  => api.post("/admin/operations/training-flag", body),
+};
+
 /* ─── Admin · Personel V3 ─────────────────────────────────────────────────────
    Endpoint prefix: /admin/personnel  (backend personnel.py — V3 Komuta Modeli)
    Master Liste + Konsolide Detay + Override aksiyonları (audit'li).            */
@@ -91,6 +104,12 @@ export const dashboardApi = {
   getIssues:        () => api.get("/dashboard/issues"),
   getTrafficHourly: () => api.get("/dashboard/traffic-hourly"),
   endBreak:         (userId) => api.post("/dashboard/actions/end-break", { user_id: userId }),
+};
+
+export const headerApi = {
+  getLive:           ()             => api.get("/admin/header/live"),
+  getCriticalAlerts: (limit = 20)   => api.get("/admin/header/critical-alerts", { params: { limit } }),
+  search:            (q, limit = 5) => api.get("/admin/header/search", { params: { q, limit } }),
 };
 
 export const authApi = {

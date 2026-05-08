@@ -1,3 +1,12 @@
+"""
+Admin · Core endpoint'leri
+─────────────────────────
+- GET /admin/overview      → genel sistem istatistikleri
+- GET /admin/users         → tüm kullanıcılar
+- GET /admin/teams         → ekipler
+- GET /admin/departments   → departmanlar
+- GET /admin/audit         → denetim kayıtları
+"""
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -10,8 +19,7 @@ from app.models.organization import Departman, Ekip
 from app.models.cdr import CDR
 from app.models.audit import DenetimIzi
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
-
+router = APIRouter(prefix="/admin", tags=["Admin · Core"])
 ADMIN_ONLY = require_admin
 
 

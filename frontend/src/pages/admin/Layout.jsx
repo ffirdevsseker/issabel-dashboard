@@ -13,6 +13,7 @@ import {
   FileClock,
   LayoutDashboard,
   LogOut,
+  Monitor,
   PanelLeftClose,
   PanelLeftOpen,
   PlugZap,
@@ -31,8 +32,8 @@ import { useAuth } from "@/context/AuthContext";
 import logoCompact from "@/assets/logo2.png";
 
 const ADMIN_NAV = [
-  { label: "Genel Bakış", to: "/admin", icon: LayoutDashboard },
-  { label: "Raporlar ve Analitik", to: "/admin/reports", icon: BarChart3 },
+  { label: "Genel Bakış", to: "/admin",           icon: LayoutDashboard },
+  { label: "Personel",    to: "/admin/personnel", icon: Users           },
 ];
 
 const COUNTS = {
@@ -86,7 +87,12 @@ export default function AdminLayout() {
   };
 
   const activeRoute = useMemo(
-    () => ADMIN_NAV.find((item) => location.pathname === item.to) || ADMIN_NAV[0],
+    () =>
+      ADMIN_NAV.find((item) =>
+        item.to === "/admin"
+          ? location.pathname === "/admin"
+          : location.pathname.startsWith(item.to)
+      ) || ADMIN_NAV[0],
     [location.pathname]
   );
 

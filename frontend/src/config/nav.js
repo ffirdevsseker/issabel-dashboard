@@ -19,6 +19,7 @@ import {
   AlertOctagon,
   ScrollText,
   Receipt,
+  Activity,
 } from "lucide-react";
 
 /* ─── PERSONEL ─── */
@@ -93,8 +94,8 @@ export const SUPERVISOR_BOTTOM_NAV_ITEMS = [
 
 /* ─── ADMIN ─── */
 export const ADMIN_NAV_ITEMS = [
-  { label: "Genel Bakış",         to: "/admin",                  icon: LayoutDashboard, roles: ["admin"], group: "main" },
-  { label: "Raporlar & Analitik", to: "/admin/reports",          icon: BarChart3,       roles: ["admin"], group: "main" },
+  { label: "Genel Bakış", to: "/admin",           icon: LayoutDashboard, roles: ["admin"], group: "main" },
+  { label: "Personel",    to: "/admin/personnel", icon: Users,           roles: ["admin"], group: "main" },
 ];
 
 export const ADMIN_BOTTOM_NAV_ITEMS = [];

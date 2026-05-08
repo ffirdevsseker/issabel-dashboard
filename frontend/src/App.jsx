@@ -15,7 +15,8 @@ import OperationalTools from "@/pages/agent/OperationalTools";
 import Layout from "@/pages/agent/Layout";
 import AdminLayout from "@/pages/admin/Layout";
 import AdminOverview from "@/pages/admin/Overview";
-import AdminReports from "@/pages/admin/Reports";
+import PersonnelPage from "@/pages/admin/Personnel";
+import PersonnelDetailPage from "@/pages/admin/PersonnelDetail";
 
 
 import SupervisorLayout from "@/pages/supervisor/Layout";
@@ -83,9 +84,9 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<AdminOverview />} />
-            <Route path="reports" element={<AdminReports />} />
-
+            <Route index                element={<AdminOverview />} />
+            <Route path="personnel"     element={<PersonnelPage />} />
+            <Route path="personnel/:id" element={<PersonnelDetailPage />} />
           </Route>
         </Routes>
       </CallProvider>

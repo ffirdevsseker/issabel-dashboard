@@ -11,7 +11,7 @@ import TrafficChart from "@/components/admin/dashboard/TrafficChart";
 
 const POLL_MS = 15_000;
 
-/* ─── Sayfa genelinde kullanılan beyaz kart paneli ─────────────────────────── */
+/* ─── Beyaz kart paneli — PersonnelMonitor'da da import edilir ──────────────── */
 export function Panel({ title, accentColor = "#3b82f6", children, stretch, badge, action }) {
   return (
     <div style={{

@@ -365,8 +365,8 @@ function NavItemEl({ item, collapsed, variant = "blue" }) {
     );
   };
 
-  // "Genel Bakış" tarzı root path'ler `end` ile match edilir, böylece
-  // /supervisor/team açıkken /supervisor (Genel Bakış) aktif görünmez.
+  // Root path'ler `end` ile exact match edilir; diğerleri prefix match (default).
+  // /admin, /supervisor, / tam eşleşme gerektirir — alt rotalar aktif göstermemeli.
   const isDashboardRoot = to === "/" || to === "/supervisor" || to === "/admin";
   const link = (
     <NavLink to={to} end={isDashboardRoot}>

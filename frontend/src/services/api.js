@@ -54,11 +54,28 @@ export const agentApi = {
 };
 
 export const adminApi = {
-  getOverview: () => api.get("/admin/overview"),
-  getUsers: () => api.get("/admin/users"),
-  getTeams: () => api.get("/admin/teams"),
+  getOverview:    () => api.get("/admin/overview"),
+  getUsers:       () => api.get("/admin/users"),
+  getTeams:       () => api.get("/admin/teams"),
   getDepartments: () => api.get("/admin/departments"),
-  getAudit: (limit = 100) => api.get(`/admin/audit?limit=${limit}`),
+  getAudit:       (limit = 100) => api.get(`/admin/audit?limit=${limit}`),
+};
+
+/* ─── Admin · Personel V3 ─────────────────────────────────────────────────────
+   Endpoint prefix: /admin/personnel  (backend personnel.py — V3 Komuta Modeli)
+   Master Liste + Konsolide Detay + Override aksiyonları (audit'li).            */
+export const personnelApi = {
+  // Master sayfa
+  getFilters:    ()       => api.get("/admin/personnel/filters"),
+  getStats:      ()       => api.get("/admin/personnel/stats"),
+  getList:       (params) => api.get("/admin/personnel", { params }),
+
+  // Detay (4 sekme verisi tek istekte)
+  getDetails:    (id)     => api.get(`/admin/personnel/${id}/details`),
+
+  // Override aksiyonları (audit log zorunlu)
+  endBreakOverride: (body) => api.post("/admin/personnel/override/end-break", body),
+  manualXp:         (body) => api.post("/admin/personnel/override/manual-xp", body),
 };
 
 export const dashboardApi = {

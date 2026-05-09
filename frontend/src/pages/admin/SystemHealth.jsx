@@ -234,22 +234,28 @@ export default function SystemHealthPage() {
   const [lastUpdate, setLastUpdate] = useState(null);
   const [autoApply,  setAutoApply]  = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal) => {
     try {
-      const r = await systemHealthApi.getInsights();
+      const r = await systemHealthApi.getInsights(signal);
+      if (signal?.aborted) return;
       setData(r.data);
       setLastUpdate(new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }));
     } catch (e) {
+      if (e?.name === "AbortError" || e?.code === "ERR_CANCELED") return;
       console.error("system-health fetch error:", e);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-    const t = setInterval(fetchData, POLL_MS);
-    return () => clearInterval(t);
+    const ctrl = new AbortController();
+    fetchData(ctrl.signal);
+    const t = setInterval(() => fetchData(ctrl.signal), POLL_MS);
+    return () => {
+      ctrl.abort();
+      clearInterval(t);
+    };
   }, [fetchData]);
 
   const ozet     = data?.cagri_ozeti  ?? {};

@@ -7,9 +7,15 @@ PUT    /admin/rules/{id}         → kural güncelle
 PATCH  /admin/rules/{id}/toggle  → aktif/pasif değiştir
 DELETE /admin/rules/{id}         → kural sil
 
-Tablo: otomasyon_kurallari (CREATE TABLE IF NOT EXISTS — ilk çağrıda oluşturulur)
+Tablo: otomasyon_kurallari (CREATE TABLE IF NOT EXISTS — ilk sunucu başlatılışında oluşturulur)
+
+Not:
+  · UUID Python tarafında (uuid.uuid4) üretilir — gen_random_uuid() / pgcrypto bağımlılığı yok.
+  · _TABLE_READY bayrağı: DDL her istekte değil yalnızca ilk kez çalışır.
 """
 from __future__ import annotations
+
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -24,10 +30,10 @@ from app.models.user import User
 router = APIRouter(prefix="/admin/rules", tags=["Admin · Otomasyon"])
 ADMIN = require_admin
 
-# ─── DDL — idempotent ─────────────────────────────────────────────────────────
+# ─── DDL — idempotent (UUID default YOK — Python tarafından sağlanır) ──────────
 _CREATE = text("""
     CREATE TABLE IF NOT EXISTS otomasyon_kurallari (
-        id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        id                UUID         PRIMARY KEY,
         ad                VARCHAR(128) NOT NULL,
         kosul_tipi        VARCHAR(64)  NOT NULL,
         kosul_degeri      NUMERIC      NOT NULL DEFAULT 0,
@@ -39,10 +45,17 @@ _CREATE = text("""
     )
 """)
 
+# DDL her process'te yalnızca bir kez çalışır
+_TABLE_READY: bool = False
+
 
 async def _ensure(db: AsyncSession) -> None:
+    global _TABLE_READY
+    if _TABLE_READY:
+        return
     await db.execute(_CREATE)
     await db.commit()
+    _TABLE_READY = True
 
 
 # ─── Pydantic ─────────────────────────────────────────────────────────────────
@@ -94,12 +107,14 @@ async def create_rule(
     _:    User         = Depends(ADMIN),
 ):
     await _ensure(db)
+    new_id = str(uuid.uuid4())
     row = (await db.execute(text("""
         INSERT INTO otomasyon_kurallari
-            (ad, kosul_tipi, kosul_degeri, aksiyon_tipi, aksiyon_degeri, aktif)
-        VALUES (:ad, :kt, :kd, :at, :av, :aktif)
+            (id, ad, kosul_tipi, kosul_degeri, aksiyon_tipi, aksiyon_degeri, aktif)
+        VALUES (CAST(:id AS uuid), :ad, :kt, :kd, :at, :av, :aktif)
         RETURNING *
     """), {
+        "id":    new_id,
         "ad":    body.ad,
         "kt":    body.kosul_tipi,
         "kd":    body.kosul_degeri,

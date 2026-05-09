@@ -170,6 +170,7 @@ export default function AutomationPage() {
   async function handleSave() {
     if (!form.ad.trim()) return;
     setSaving(true);
+    setError(null);
     try {
       if (modal === "create") {
         await rulesApi.create(form);
@@ -180,6 +181,8 @@ export default function AutomationPage() {
       setModal(null);
     } catch (e) {
       console.error(e);
+      const msg = e?.response?.data?.detail || "Kural kaydedilemedi. Sunucu hatası.";
+      setError(msg);
     } finally {
       setSaving(false);
     }

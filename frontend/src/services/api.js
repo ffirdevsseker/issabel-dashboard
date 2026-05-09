@@ -156,7 +156,7 @@ export const rulesApi = {
 /* ─── Admin · Sistem Sağlığı & AI İçgörüler ──────────────────────────────────
    Endpoint prefix: /admin/system  (system_health.py)                          */
 export const systemHealthApi = {
-  getInsights: () => api.get("/admin/system/ai-insights"),
+  getInsights: (signal) => api.get("/admin/system/ai-insights", { signal }),
 };
 
 export default api;

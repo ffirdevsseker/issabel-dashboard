@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   Bell,
   ChevronRight,
   Coffee,
@@ -29,6 +30,7 @@ const ADMIN_NAV = [
   { label: "Genel Bakış",     to: "/admin",            icon: LayoutDashboard },
   { label: "Personel",        to: "/admin/personnel",  icon: Users           },
   { label: "Canlı Operasyon", to: "/admin/operations", icon: Radio           },
+  { label: "Sistem & Raporlar", to: "/admin/reports",  icon: BarChart3       },
 ];
 
 // Sağlık renkleri

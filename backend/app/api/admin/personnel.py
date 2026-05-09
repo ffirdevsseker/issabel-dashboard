@@ -91,8 +91,8 @@ async def _audit(
                     (user_id, aksiyon, tablo_adi, kayit_id,
                      eski_deger, yeni_deger, tarih)
                 VALUES
-                    (:uid::uuid, :aks::audit_action, :tablo, :kid::uuid,
-                     :eski::jsonb, :yeni::jsonb, NOW())
+                    (CAST(:uid AS uuid), CAST(:aks AS audit_action), :tablo, CAST(:kid AS uuid),
+                     CAST(:eski AS jsonb), CAST(:yeni AS jsonb), NOW())
             """),
             {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
              "kid": kayit_id, "eski": eski_json, "yeni": yeni_json},
@@ -106,8 +106,8 @@ async def _audit(
                         (user_id, aksiyon, tablo_adi,
                          eski_deger, yeni_deger, tarih)
                     VALUES
-                        (:uid::uuid, :aks::audit_action, :tablo,
-                         :eski::jsonb, :yeni::jsonb, NOW())
+                        (CAST(:uid AS uuid), CAST(:aks AS audit_action), :tablo,
+                         CAST(:eski AS jsonb), CAST(:yeni AS jsonb), NOW())
                 """),
                 {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
                  "eski": eski_json, "yeni": yeni_json},
@@ -227,11 +227,11 @@ async def list_personnel(
     if ekip_id:
         conds.append("""
             (
-                u.ekip_id = :ekip_id::uuid
+                u.ekip_id = CAST(:ekip_id AS uuid)
                 OR EXISTS (
                     SELECT 1 FROM supervisor_ekip se2
                     WHERE se2.supervisor_id = u.id
-                      AND se2.ekip_id = :ekip_id::uuid
+                      AND se2.ekip_id = CAST(:ekip_id AS uuid)
                 )
             )
         """)
@@ -389,7 +389,7 @@ async def get_details(
         LEFT JOIN ekipler           e  ON e.id = u.ekip_id
         LEFT JOIN departmanlar      d  ON d.id = u.departman_id
         LEFT JOIN v_personel_anlik  vp ON vp.id = u.id
-        WHERE u.id = :uid::uuid AND u.silindi_mi = FALSE
+        WHERE u.id = CAST(:uid AS uuid) AND u.silindi_mi = FALSE
     """), {"uid": user_id, "dept": DEPARTMENT_FILTER_NAME})).fetchone()
 
     if not p:
@@ -397,7 +397,7 @@ async def get_details(
 
     aktif_mola = (await db.execute(text("""
         SELECT id::text FROM molalar
-        WHERE user_id = :uid::uuid AND bitis IS NULL AND onay_durumu = 'onaylandi'
+        WHERE user_id = CAST(:uid AS uuid) AND bitis IS NULL AND onay_durumu = 'onaylandi'
         ORDER BY baslangic ASC LIMIT 1
     """), {"uid": user_id})).scalar()
 
@@ -429,7 +429,7 @@ async def get_details(
             ROUND(AVG(csat_skoru) FILTER (WHERE csat_skoru IS NOT NULL)::numeric, 2)
                                                                                   AS ort_csat
         FROM cagri_kayitlari
-        WHERE user_id = :uid::uuid
+        WHERE user_id = CAST(:uid AS uuid)
           AND baslangic_zamani >= CURRENT_DATE - INTERVAL '6 days'
         GROUP BY DATE(baslangic_zamani)
         ORDER BY gun
@@ -445,7 +445,7 @@ async def get_details(
             COALESCE(pol.gec_giris_dk, 0) AS gec_giris_dk,
             pol.ip_adresi
         FROM personel_oturum_loglari pol
-        WHERE pol.user_id = :uid::uuid
+        WHERE pol.user_id = CAST(:uid AS uuid)
           AND pol.login_zamani >= CURRENT_DATE - INTERVAL '13 days'
         ORDER BY pol.login_zamani DESC
         LIMIT 30
@@ -465,7 +465,7 @@ async def get_details(
             (m.bitis IS NULL)                                                     AS devam_ediyor,
             COALESCE(m.sure_asimi, FALSE)                                         AS sure_asimi
         FROM molalar m
-        WHERE m.user_id = :uid::uuid
+        WHERE m.user_id = CAST(:uid AS uuid)
           AND m.baslangic >= CURRENT_DATE - INTERVAL '29 days'
         ORDER BY m.baslangic DESC
         LIMIT 50
@@ -481,7 +481,7 @@ async def get_details(
             xh.tarih        AS created_at,
             xh.referans_id::text AS referans_id
         FROM xp_hareketleri xh
-        WHERE xh.user_id = :uid::uuid
+        WHERE xh.user_id = CAST(:uid AS uuid)
         ORDER BY xh.tarih DESC
         LIMIT 50
     """), {"uid": user_id})).fetchall()
@@ -550,7 +550,7 @@ async def override_end_break(
         text("""
             UPDATE molalar
             SET bitis = :now
-            WHERE user_id     = :uid::uuid
+            WHERE user_id     = CAST(:uid AS uuid)
               AND bitis        IS NULL
               AND onay_durumu  = 'onaylandi'
             RETURNING id::text AS id, baslangic
@@ -592,7 +592,7 @@ async def override_manual_xp(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "XP delta sıfır olamaz")
 
     cur = (await db.execute(
-        text("SELECT COALESCE(xp,0) AS xp FROM kullanicilar WHERE id = :uid::uuid"),
+        text("SELECT COALESCE(xp,0) AS xp FROM kullanicilar WHERE id = CAST(:uid AS uuid)"),
         {"uid": body.user_id},
     )).scalar()
     if cur is None:
@@ -604,7 +604,7 @@ async def override_manual_xp(
     aciklama = f"[Admin Override · {current_user.kullanici_adi}] {body.sebep}"
     await db.execute(text("""
         INSERT INTO xp_hareketleri (user_id, miktar, kaynak, referans_id, aciklama, tarih)
-        VALUES (:uid::uuid, :delta, 'duzeltme', :ref_id, :aciklama, NOW())
+        VALUES (CAST(:uid AS uuid), :delta, 'duzeltme', :ref_id, :aciklama, NOW())
     """), {
         "uid":      body.user_id,
         "delta":    body.delta,
@@ -614,7 +614,7 @@ async def override_manual_xp(
 
     # kullanicilar.xp'i güncelle (trigger yoksa elle)
     await db.execute(
-        text("UPDATE kullanicilar SET xp = :xp WHERE id = :uid::uuid"),
+        text("UPDATE kullanicilar SET xp = :xp WHERE id = CAST(:uid AS uuid)"),
         {"xp": new_xp, "uid": body.user_id},
     )
 

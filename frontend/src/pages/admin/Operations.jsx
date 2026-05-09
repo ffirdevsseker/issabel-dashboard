@@ -6,6 +6,11 @@
               B) Kuyruk Monitörü    (kuyrukta bekleyenler)
               C) Personel Radarı    (ekip filtreli anlık durum)
    Veri     : Gerçek DB – 5 sn poll + 1 sn tick
+
+   Aşama 2 — canlandırılan butonlar:
+     · QueueCard  → Duraklat / Aktifleştir  (PATCH /queues/{id}/toggle)
+     · StaffRow   → Mola Bitir              (POST  /actions/end-break/{uid})
+     · StaffRow   → Talimat Gönder modal    (POST  /actions/send-instruction)
 ════════════════════════════════════════════════════════════════════════════ */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -14,11 +19,16 @@ import {
   Ear,
   Headphones,
   Minus,
+  Pause,
+  Play,
   Plus,
   Radio,
   RefreshCw,
+  Send,
+  StopCircle,
   Wifi,
   WifiOff,
+  X,
 } from "lucide-react";
 
 import { warRoomApi } from "@/services/api";
@@ -97,8 +107,6 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-
-          {/* Başlık satırı */}
           <div style={{
             display: "grid", gridTemplateColumns: cols,
             gap: 8, padding: "6px 10px",
@@ -112,7 +120,6 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
             ))}
           </div>
 
-          {/* Veri satırları */}
           {calls.map((c) => {
             const elapsed  = c.baslangic_zamani
               ? Math.floor((nowMs - new Date(c.baslangic_zamani)) / 1000)
@@ -131,7 +138,6 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
                   borderLeft: longCall ? "3px solid #ef4444" : "3px solid transparent",
                 }}
               >
-                {/* Müşteri / Numara */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{
                     fontSize: 12, fontWeight: 600, color: "#0f172a",
@@ -140,13 +146,10 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
                     {c.musteri_ad || c.arayan_numara || "—"}
                   </div>
                   {c.musteri_ad && c.arayan_numara && c.arayan_numara !== "—" && (
-                    <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
-                      {c.arayan_numara}
-                    </div>
+                    <div style={{ fontSize: 10, color: "#94a3b8" }}>{c.arayan_numara}</div>
                   )}
                 </div>
 
-                {/* Personel */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{
                     fontSize: 12, fontWeight: 600, color: "#0f172a",
@@ -155,7 +158,7 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
                     {c.personel_ad || "—"}
                   </div>
                   {c.dahili_no && (
-                    <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+                    <div style={{ fontSize: 10, color: "#94a3b8" }}>
                       ·{c.dahili_no}
                       {c.ekip_adi && c.ekip_adi !== "—" && (
                         <span style={{ marginLeft: 4 }}>· {c.ekip_adi}</span>
@@ -164,7 +167,6 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
                   )}
                 </div>
 
-                {/* Kuyruk */}
                 <div style={{
                   fontSize: 11, color: "#475569",
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -172,7 +174,6 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
                   {c.kuyruk_adi || "—"}
                 </div>
 
-                {/* Canlı Süre */}
                 <div style={{
                   fontSize: 13, fontWeight: 700,
                   fontVariantNumeric: "tabular-nums",
@@ -182,7 +183,6 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
                   {fmtDur(elapsed)}
                 </div>
 
-                {/* Aksiyon (admin only) */}
                 {isAdmin && (
                   <div style={{ display: "flex", gap: 5 }}>
                     <button
@@ -225,22 +225,25 @@ function ActiveCallsPanel({ calls, nowMs, isAdmin, onAction }) {
 /* ════════════════════════════════════════════════════════════════════════════
    B. KUYRUK MONİTÖRÜ
 ════════════════════════════════════════════════════════════════════════════ */
-function QueueCard({ q, onCapacityChange }) {
+function QueueCard({ q, onCapacityChange, onToggle }) {
   const kapYuzde = q.max_kapasite > 0
     ? Math.min(100, Math.round((q.bekleyen_sayi / q.max_kapasite) * 100))
     : 0;
   const barColor = kapYuzde >= 80 ? "#ef4444" : kapYuzde >= 50 ? "#f59e0b" : "#10b981";
+  const isPaused = !q.aktif;
 
   return (
     <div
       className={q.kritik ? "queue-pulse" : ""}
       style={{
-        background: "#fff",
-        border: `1px solid ${q.kritik ? "rgba(239,68,68,0.45)" : "rgba(0,0,0,0.07)"}`,
-        borderTop: `2px solid ${q.kritik ? "#ef4444" : "#f59e0b"}`,
+        background: isPaused ? "#f8fafc" : "#fff",
+        border: `1px solid ${q.kritik ? "rgba(239,68,68,0.45)" : isPaused ? "rgba(148,163,184,0.35)" : "rgba(0,0,0,0.07)"}`,
+        borderTop: `2px solid ${q.kritik ? "#ef4444" : isPaused ? "#94a3b8" : "#f59e0b"}`,
         borderRadius: 14, padding: "14px 16px",
         minWidth: 220, flex: "1 1 220px",
         display: "flex", flexDirection: "column", gap: 10,
+        opacity: isPaused ? 0.75 : 1,
+        transition: "opacity 0.2s, border-color 0.2s",
       }}
     >
       {/* Başlık */}
@@ -248,12 +251,21 @@ function QueueCard({ q, onCapacityChange }) {
         fontSize: 13, fontWeight: 800, color: "#0f172a",
         display: "flex", alignItems: "center", gap: 7,
       }}>
-        {q.kuyruk_adi}
-        {q.kritik && (
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {q.kuyruk_adi}
+        </span>
+        {isPaused && (
+          <span style={{
+            fontSize: 9, fontWeight: 800, color: "#94a3b8",
+            background: "rgba(148,163,184,0.12)", border: "1px solid rgba(148,163,184,0.3)",
+            borderRadius: 4, padding: "1px 5px", letterSpacing: "0.06em", flexShrink: 0,
+          }}>DURDURULDU</span>
+        )}
+        {!isPaused && q.kritik && (
           <span style={{
             fontSize: 9, fontWeight: 800, color: "#ef4444",
             background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
-            borderRadius: 4, padding: "1px 5px", letterSpacing: "0.06em",
+            borderRadius: 4, padding: "1px 5px", letterSpacing: "0.06em", flexShrink: 0,
           }}>KRİTİK</span>
         )}
       </div>
@@ -282,13 +294,14 @@ function QueueCard({ q, onCapacityChange }) {
       {/* Doluluk çubuğu */}
       <div style={{ height: 4, borderRadius: 3, background: "rgba(0,0,0,0.06)", overflow: "hidden" }}>
         <div style={{
-          width: `${kapYuzde}%`, height: "100%", background: barColor,
+          width: `${kapYuzde}%`, height: "100%", background: isPaused ? "#94a3b8" : barColor,
           borderRadius: 3, transition: "width 0.4s ease",
         }} />
       </div>
 
-      {/* Kapasite stepper */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "center" }}>
+      {/* Alt satır: kapasite stepper + toggle */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {/* Kapasite stepper */}
         <button
           onClick={() => onCapacityChange(q.id, q.max_kapasite - 1)}
           disabled={q.max_kapasite <= 1}
@@ -299,12 +312,13 @@ function QueueCard({ q, onCapacityChange }) {
             color: q.max_kapasite <= 1 ? "#cbd5e1" : "#475569",
             cursor: q.max_kapasite <= 1 ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
           }}
         ><Minus size={11} /></button>
 
         <span style={{
           fontSize: 13, fontWeight: 800, color: "#0f172a",
-          minWidth: 36, textAlign: "center", fontVariantNumeric: "tabular-nums",
+          minWidth: 32, textAlign: "center", fontVariantNumeric: "tabular-nums",
         }}>{q.max_kapasite}</span>
 
         <button
@@ -317,16 +331,49 @@ function QueueCard({ q, onCapacityChange }) {
             color: q.max_kapasite >= 200 ? "#cbd5e1" : "#475569",
             cursor: q.max_kapasite >= 200 ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
           }}
         ><Plus size={11} /></button>
 
-        <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500, marginLeft: 2 }}>maks</span>
+        <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500 }}>maks</span>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* ── TOGGLE BUTONU (Yeni) ── */}
+        <button
+          title={isPaused ? "Kuyruğu Aktifleştir" : "Kuyruğu Duraklat"}
+          onClick={() => onToggle(q.id)}
+          style={{
+            display:    "flex",
+            alignItems: "center",
+            gap:        4,
+            padding:    "4px 9px",
+            borderRadius: 7,
+            border:     isPaused
+              ? "1px solid rgba(16,185,129,0.35)"
+              : "1px solid rgba(148,163,184,0.35)",
+            background: isPaused
+              ? "rgba(16,185,129,0.08)"
+              : "rgba(148,163,184,0.08)",
+            color:      isPaused ? "#10b981" : "#64748b",
+            fontSize:   10,
+            fontWeight: 700,
+            cursor:     "pointer",
+            transition: "all 0.15s",
+            flexShrink: 0,
+          }}
+        >
+          {isPaused
+            ? <><Play    size={10} />&nbsp;Aktifleştir</>
+            : <><Pause   size={10} />&nbsp;Duraklat</>}
+        </button>
       </div>
     </div>
   );
 }
 
-function QueuesPanel({ queues, onCapacityChange }) {
+function QueuesPanel({ queues, onCapacityChange, onToggle }) {
   return (
     <Panel title="Kuyruk Monitörü" accentColor="#f59e0b" badge={queues.length}>
       {queues.length === 0 ? (
@@ -336,7 +383,12 @@ function QueuesPanel({ queues, onCapacityChange }) {
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           {queues.map((q) => (
-            <QueueCard key={q.id} q={q} onCapacityChange={onCapacityChange} />
+            <QueueCard
+              key={q.id}
+              q={q}
+              onCapacityChange={onCapacityChange}
+              onToggle={onToggle}
+            />
           ))}
         </div>
       )}
@@ -366,9 +418,7 @@ function TeamFilterTabs({ teams, active, onChange }) {
             border: active === t
               ? "1.5px solid #8b5cf6"
               : "1px solid rgba(0,0,0,0.08)",
-            background: active === t
-              ? "rgba(139,92,246,0.1)"
-              : "#ffffff",
+            background: active === t ? "rgba(139,92,246,0.1)" : "#ffffff",
             color: active === t ? "#8b5cf6" : "#64748b",
             transition: "all 0.12s",
           }}
@@ -380,22 +430,23 @@ function TeamFilterTabs({ teams, active, onChange }) {
   );
 }
 
-function StaffRow({ s }) {
-  const d     = D[s.anlik_durum] || D.offline;
-  const sipC  = SIP_COLOR[s.sip_durumu] || "#94a3b8";
+function StaffRow({ s, onEndBreak, onInstruction, endBreakLoading }) {
+  const d        = D[s.anlik_durum] || D.offline;
+  const sipC     = SIP_COLOR[s.sip_durumu] || "#94a3b8";
   const initials = (s.ad_soyad || "?")
     .split(" ")
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
+  const isLoading = endBreakLoading.has(s.id);
 
   return (
     <div
       className={s.mola_asimi ? "mola-alarm" : ""}
       style={{
-        display: "flex", alignItems: "center", gap: 10,
-        padding: "8px 16px",
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "8px 12px",
         borderBottom: "1px solid rgba(0,0,0,0.03)",
         background: s.mola_asimi ? "rgba(254,226,226,0.55)" : "transparent",
         transition: "background 0.15s",
@@ -403,21 +454,21 @@ function StaffRow({ s }) {
     >
       {/* Avatar */}
       <div style={{
-        width: 34, height: 34, borderRadius: "50%",
+        width: 32, height: 32, borderRadius: "50%",
         background: d.bg, border: `1.5px solid ${d.color}30`,
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 11, fontWeight: 800, color: d.color, flexShrink: 0,
+        fontSize: 10, fontWeight: 800, color: d.color, flexShrink: 0,
       }}>
         {initials}
       </div>
 
-      {/* Ad + dahili + unvan */}
+      {/* Ad + dahili */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           <span style={{
-            fontSize: 12, fontWeight: 700, color: "#0f172a",
+            fontSize: 11.5, fontWeight: 700, color: "#0f172a",
             whiteSpace: "nowrap", overflow: "hidden",
-            textOverflow: "ellipsis", maxWidth: 130,
+            textOverflow: "ellipsis", maxWidth: 110,
           }}>
             {s.ad_soyad}
           </span>
@@ -430,7 +481,7 @@ function StaffRow({ s }) {
             }}>AŞIM</span>
           )}
         </div>
-        <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>
+        <div style={{ fontSize: 9.5, color: "#94a3b8", fontWeight: 500, marginTop: 1 }}>
           {[s.dahili_no && `·${s.dahili_no}`, s.unvan].filter(Boolean).join("  ")}
         </div>
       </div>
@@ -438,17 +489,66 @@ function StaffRow({ s }) {
       {/* Statü badge */}
       <StatusBadge durum={s.anlik_durum} />
 
-      {/* SIP göstergesi */}
+      {/* SIP */}
       <div title={`SIP: ${s.sip_durumu}`} style={{ flexShrink: 0 }}>
         {s.sip_durumu === "koptu"
-          ? <WifiOff size={12} color="#ef4444" />
-          : <Wifi size={12} color={sipC} />}
+          ? <WifiOff size={11} color="#ef4444" />
+          : <Wifi    size={11} color={sipC} />}
+      </div>
+
+      {/* ── AKSİYON BUTONLARI (Yeni) ── */}
+      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+        {/* Mola Bitir — sadece mola aşımı varsa */}
+        {s.mola_asimi && (
+          <button
+            title="Molayı Zorla Bitir"
+            onClick={() => onEndBreak(s.id)}
+            disabled={isLoading}
+            style={{
+              width:      26,
+              height:     26,
+              borderRadius: 6,
+              border:     "1px solid rgba(239,68,68,0.4)",
+              background: isLoading ? "rgba(239,68,68,0.04)" : "rgba(239,68,68,0.1)",
+              color:      "#ef4444",
+              cursor:     isLoading ? "not-allowed" : "pointer",
+              display:    "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity:    isLoading ? 0.5 : 1,
+              flexShrink: 0,
+            }}
+          >
+            <StopCircle size={11} style={{ animation: isLoading ? "spin 1s linear infinite" : "none" }} />
+          </button>
+        )}
+
+        {/* Talimat Gönder — her personel için */}
+        <button
+          title="Anlık Talimat Gönder"
+          onClick={() => onInstruction(s.id, s.ad_soyad)}
+          style={{
+            width:      26,
+            height:     26,
+            borderRadius: 6,
+            border:     "1px solid rgba(139,92,246,0.35)",
+            background: "rgba(139,92,246,0.08)",
+            color:      "#8b5cf6",
+            cursor:     "pointer",
+            display:    "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+        >
+          <Send size={10} />
+        </button>
       </div>
     </div>
   );
 }
 
-function StaffPanel({ staff }) {
+function StaffPanel({ staff, onEndBreak, onInstruction, endBreakLoading }) {
   const teams = ["Tümü", ...Array.from(
     new Set(staff.map((s) => s.ekip_ad).filter(Boolean))
   ).sort()];
@@ -459,16 +559,15 @@ function StaffPanel({ staff }) {
     ? staff
     : staff.filter((s) => s.ekip_ad === activeTeam);
 
-  /* Tümü modunda ekiplere göre grupla, tekil ekip modunda düz liste */
   const groups = activeTeam === "Tümü"
     ? teams.slice(1).reduce((acc, team) => {
         const members = filtered.filter((s) => s.ekip_ad === team);
         if (members.length) acc.push({ team, members });
         return acc;
       }, [
-        ...( filtered.filter((s) => !s.ekip_ad).length
-             ? [{ team: "—", members: filtered.filter((s) => !s.ekip_ad) }]
-             : [] ),
+        ...(filtered.filter((s) => !s.ekip_ad).length
+          ? [{ team: "—", members: filtered.filter((s) => !s.ekip_ad) }]
+          : []),
       ])
     : [{ team: activeTeam, members: filtered }];
 
@@ -494,7 +593,6 @@ function StaffPanel({ staff }) {
         ) : (
           groups.map(({ team, members }) => (
             <div key={team}>
-              {/* Ekip grup başlığı */}
               <div style={{
                 padding: "7px 16px 4px",
                 fontSize: 9, fontWeight: 700,
@@ -512,7 +610,15 @@ function StaffPanel({ staff }) {
                 <span style={{ color: "#c4b5fd", fontWeight: 600 }}>({members.length})</span>
               </div>
 
-              {members.map((s) => <StaffRow key={s.id} s={s} />)}
+              {members.map((s) => (
+                <StaffRow
+                  key={s.id}
+                  s={s}
+                  onEndBreak={onEndBreak}
+                  onInstruction={onInstruction}
+                  endBreakLoading={endBreakLoading}
+                />
+              ))}
             </div>
           ))
         )}
@@ -528,12 +634,14 @@ function AlertTicker({ staff, queues, calls, nowMs }) {
   const msgs = [];
 
   staff.forEach((s) => {
-    if (s.mola_asimi)        msgs.push(`⏰ ${s.ad_soyad} — mola süresi aşıldı`);
+    if (s.mola_asimi)             msgs.push(`⏰ ${s.ad_soyad} — mola süresi aşıldı`);
     if (s.sip_durumu === "koptu") msgs.push(`📡 ${s.ad_soyad} — SIP bağlantısı kopuk`);
   });
 
   queues.forEach((q) => {
-    if (q.kritik)
+    if (!q.aktif)
+      msgs.push(`⏸️ ${q.kuyruk_adi} — kuyruk duraklatıldı`);
+    else if (q.kritik)
       msgs.push(`🚨 ${q.kuyruk_adi} — ${fmtSn(q.max_bekleme_sn)} bekleme (kritik)`);
   });
 
@@ -554,7 +662,7 @@ function AlertTicker({ staff, queues, calls, nowMs }) {
     <div style={{
       position: "sticky", bottom: 0,
       margin: "12px -16px -16px",
-      background: "linear-gradient(90deg, #7f1d1d, #991b1b, #7f1d1d)",
+      background: "linear-gradient(90deg,#7f1d1d,#991b1b,#7f1d1d)",
       overflow: "hidden", height: 34,
       display: "flex", alignItems: "center",
       borderRadius: "0 0 12px 12px",
@@ -567,6 +675,125 @@ function AlertTicker({ staff, queues, calls, nowMs }) {
         color: "#fecaca", paddingLeft: "100%",
       }}>
         {doubled}
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   E. TALİMAT MODAL
+════════════════════════════════════════════════════════════════════════════ */
+function InstructionModal({ target, text, onChange, onSend, onClose, sending }) {
+  return (
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position:   "fixed",
+        inset:      0,
+        background: "rgba(15,23,42,0.55)",
+        zIndex:     300,
+        display:    "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding:    16,
+      }}
+    >
+      <div
+        style={{
+          background:   "#ffffff",
+          borderRadius: 16,
+          padding:      24,
+          width:        420,
+          maxWidth:     "100%",
+          boxShadow:    "0 24px 48px rgba(15,23,42,0.28)",
+        }}
+      >
+        {/* Başlık */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#0f172a" }}>
+              ⚡ Anlık Talimat Gönder
+            </h3>
+            <p style={{ margin: "3px 0 0", fontSize: 12, color: "#64748b" }}>
+              Alıcı: <strong>{target.adSoyad}</strong>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: 8,
+              border: "1px solid rgba(0,0,0,0.08)",
+              background: "#f8fafc", color: "#64748b",
+              cursor: "pointer", display: "flex",
+              alignItems: "center", justifyContent: "center",
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Mesaj alanı */}
+        <textarea
+          autoFocus
+          value={text}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Talimat mesajını yazın… (maks. 500 karakter)"
+          maxLength={500}
+          rows={4}
+          style={{
+            width:        "100%",
+            resize:       "vertical",
+            border:       "1.5px solid rgba(139,92,246,0.3)",
+            borderRadius: 10,
+            padding:      "10px 12px",
+            fontSize:     13,
+            color:        "#0f172a",
+            fontFamily:   "inherit",
+            outline:      "none",
+            background:   "#fafbff",
+            boxSizing:    "border-box",
+            lineHeight:   1.5,
+          }}
+          onFocus={(e) => (e.target.style.borderColor = "#8b5cf6")}
+          onBlur={(e)  => (e.target.style.borderColor = "rgba(139,92,246,0.3)")}
+        />
+        <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "right", marginTop: 3 }}>
+          {text.length} / 500
+        </div>
+
+        {/* Butonlar */}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding:    "8px 18px", borderRadius: 9,
+              border:     "1px solid rgba(0,0,0,0.1)",
+              background: "#fff", color: "#475569",
+              fontSize:   12, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            İptal
+          </button>
+          <button
+            onClick={onSend}
+            disabled={!text.trim() || sending}
+            style={{
+              display:    "flex",
+              alignItems: "center",
+              gap:        6,
+              padding:    "8px 18px", borderRadius: 9,
+              border:     "none",
+              background: !text.trim() || sending ? "#c4b5fd" : "#8b5cf6",
+              color:      "#fff",
+              fontSize:   12, fontWeight: 700,
+              cursor:     !text.trim() || sending ? "not-allowed" : "pointer",
+              transition: "background 0.15s",
+            }}
+          >
+            <Send size={12} style={{ animation: sending ? "spin 1s linear infinite" : "none" }} />
+            {sending ? "Gönderiliyor…" : "Gönder"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -587,6 +814,14 @@ export default function Operations() {
   const [nowMs,      setNowMs]      = useState(Date.now());
   const [clockStr,   setClockStr]   = useState(nowHMS());
   const [toast,      setToast]      = useState(null);
+
+  /* Talimat modal state */
+  const [instrModal,   setInstrModal]   = useState(null);   // { userId, adSoyad }
+  const [instrText,    setInstrText]    = useState("");
+  const [instrSending, setInstrSending] = useState(false);
+
+  /* End-break loading set (hangi user_id işleniyorsa) */
+  const [endBreakLoading, setEndBreakLoading] = useState(new Set());
 
   const pollRef = useRef(null);
   const tickRef = useRef(null);
@@ -615,7 +850,7 @@ export default function Operations() {
     return () => clearInterval(pollRef.current);
   }, [fetchAll]);
 
-  /* ── 1 sn tick — süre sayaçları + saat ──────────────────────────────── */
+  /* ── 1 sn tick ──────────────────────────────────────────────────────── */
   useEffect(() => {
     tickRef.current = setInterval(() => {
       setNowMs(Date.now());
@@ -654,7 +889,85 @@ export default function Operations() {
     }
   };
 
-  /* ── Özet sayılar (başlık satırı için) ───────────────────────────────── */
+  /* ── Kuyruk toggle (optimistik) ─────────────────────────────────────── */
+  const handleToggleQueue = async (queueId) => {
+    const prev = queues.find((q) => q.id === queueId);
+    if (!prev) return;
+
+    /* Optimistik: aktif durumunu tersine çevir */
+    setQueues((qs) =>
+      qs.map((q) => q.id === queueId ? { ...q, aktif: !q.aktif } : q)
+    );
+
+    try {
+      const { data } = await warRoomApi.toggleQueue(queueId);
+      showToast(
+        "ok",
+        `${data.kuyruk_adi} — ${data.aktif ? "✅ Aktifleştirildi" : "⏸️ Duraklatıldı"}`
+      );
+    } catch (err) {
+      /* Rollback */
+      setQueues((qs) =>
+        qs.map((q) => q.id === queueId ? { ...q, aktif: prev.aktif } : q)
+      );
+      showToast("err", err?.response?.data?.detail || "Kuyruk durumu değiştirilemedi");
+    }
+  };
+
+  /* ── Mola zorla bitir ────────────────────────────────────────────────── */
+  const handleEndBreak = async (userId) => {
+    setEndBreakLoading((s) => new Set([...s, userId]));
+
+    /* Optimistik */
+    setStaff((prev) =>
+      prev.map((s) =>
+        s.id === userId ? { ...s, mola_asimi: false, anlik_durum: "aktif" } : s
+      )
+    );
+
+    try {
+      const { data } = await warRoomApi.endBreak(userId);
+      showToast("ok", `Mola sonlandırıldı (${data.kapanan_mola_sayisi} kayıt)`);
+    } catch (err) {
+      showToast("err", err?.response?.data?.detail || "Mola sonlandırılamadı");
+      fetchAll(); /* rollback */
+    } finally {
+      setEndBreakLoading((s) => {
+        const next = new Set(s);
+        next.delete(userId);
+        return next;
+      });
+    }
+  };
+
+  /* ── Talimat gönder ──────────────────────────────────────────────────── */
+  const openInstruction = (userId, adSoyad) => {
+    setInstrModal({ userId, adSoyad });
+    setInstrText("");
+  };
+
+  const closeInstruction = () => {
+    if (instrSending) return;
+    setInstrModal(null);
+    setInstrText("");
+  };
+
+  const handleSubmitInstruction = async () => {
+    if (!instrText.trim() || !instrModal) return;
+    setInstrSending(true);
+    try {
+      await warRoomApi.sendInstruction(instrModal.userId, instrText.trim());
+      showToast("ok", `Talimat gönderildi → ${instrModal.adSoyad}`);
+      setInstrModal(null);
+      setInstrText("");
+    } catch (err) {
+      showToast("err", err?.response?.data?.detail || "Talimat gönderilemedi");
+    } finally {
+      setInstrSending(false);
+    }
+  };
+
+  /* ── Özet sayılar ───────────────────────────────────────────────────── */
   const totalQueued = queues.reduce((s, q) => s + (q.bekleyen_sayi || 0), 0);
   const onlineCount = staff.filter(
     (s) => s.anlik_durum === "aktif" || s.anlik_durum === "mesgul"
@@ -690,7 +1003,6 @@ export default function Operations() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* CANLI chip */}
           <div style={{
             display: "flex", alignItems: "center", gap: 7,
             padding: "5px 12px",
@@ -711,7 +1023,6 @@ export default function Operations() {
             </span>
           </div>
 
-          {/* Yenile */}
           <button
             onClick={() => fetchAll(true)}
             disabled={refreshing}
@@ -734,7 +1045,7 @@ export default function Operations() {
         </div>
       </div>
 
-      {/* ── ANA GRID: 2fr (sol) + 1fr (sağ — personel) ─────────────────── */}
+      {/* ── ANA GRID ────────────────────────────────────────────────────── */}
       <div
         className="wr-main-grid"
         style={{
@@ -744,7 +1055,6 @@ export default function Operations() {
           gap: 14,
         }}
       >
-        {/* A. Canlı Çağrı Radarı — sol üst */}
         <div>
           <ActiveCallsPanel
             calls={calls}
@@ -754,14 +1064,21 @@ export default function Operations() {
           />
         </div>
 
-        {/* C. Personel Radarı — sağ, 2 satır */}
         <div style={{ gridRow: "1 / 3", gridColumn: 2 }}>
-          <StaffPanel staff={staff} />
+          <StaffPanel
+            staff={staff}
+            onEndBreak={handleEndBreak}
+            onInstruction={openInstruction}
+            endBreakLoading={endBreakLoading}
+          />
         </div>
 
-        {/* B. Kuyruk Monitörü — sol alt */}
         <div>
-          <QueuesPanel queues={queues} onCapacityChange={handleCapacityChange} />
+          <QueuesPanel
+            queues={queues}
+            onCapacityChange={handleCapacityChange}
+            onToggle={handleToggleQueue}
+          />
         </div>
       </div>
 
@@ -788,7 +1105,19 @@ export default function Operations() {
         </div>
       )}
 
-      {/* ── KEYFRAMES + CSS SINIFLARI ───────────────────────────────────── */}
+      {/* ── TALİMAT MODAL ──────────────────────────────────────────────── */}
+      {instrModal && (
+        <InstructionModal
+          target={instrModal}
+          text={instrText}
+          onChange={setInstrText}
+          onSend={handleSubmitInstruction}
+          onClose={closeInstruction}
+          sending={instrSending}
+        />
+      )}
+
+      {/* ── KEYFRAMES + CSS ─────────────────────────────────────────────── */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes livePulse {

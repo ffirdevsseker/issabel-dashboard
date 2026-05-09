@@ -18,6 +18,7 @@ import AdminOverview from "@/pages/admin/Overview";
 import PersonnelPage from "@/pages/admin/Personnel";
 import PersonnelDetailPage from "@/pages/admin/PersonnelDetail";
 import OperationsPage from "@/pages/admin/Operations";
+import AdminReports from "@/pages/admin/Reports";
 
 
 import SupervisorLayout from "@/pages/supervisor/Layout";
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="personnel"     element={<PersonnelPage />} />
             <Route path="personnel/:id" element={<PersonnelDetailPage />} />
             <Route path="operations"    element={<OperationsPage />} />
+            <Route path="reports"       element={<AdminReports />} />
           </Route>
         </Routes>
       </CallProvider>

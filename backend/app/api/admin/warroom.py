@@ -256,17 +256,17 @@ async def get_staff_detail(
             )                                                           AS ortalama_csat,
             -- Aktif mola başlangıcı
             (
-                SELECT m.baslangic_zamani
+                SELECT m.baslangic
                 FROM   molalar m
-                WHERE  m.user_id        = u.id
-                  AND  m.bitis_zamani  IS NULL
-                  AND  m.onay_durumu   IN ('onaylandi', 'beklemede')
-                ORDER  BY m.baslangic_zamani DESC
+                WHERE  m.user_id      = u.id
+                  AND  m.bitis       IS NULL
+                  AND  m.onay_durumu IN ('onaylandi', 'beklemede')
+                ORDER  BY m.baslangic DESC
                 LIMIT  1
             )                                                           AS mola_baslangic
         FROM kullanicilar u
         LEFT JOIN v_personel_anlik vp ON vp.id = u.id
-        WHERE u.id = :uid::uuid
+        WHERE u.id = CAST(:uid AS uuid)
           AND u.silindi_mi = FALSE
     """), {"uid": user_id})).fetchone()
 
@@ -285,7 +285,7 @@ async def get_staff_detail(
         FROM   cagri_kayitlari c
         LEFT   JOIN musteriler m ON m.id = c.musteri_id
         LEFT   JOIN kuyruklar  k ON k.id = c.queue_id
-        WHERE  c.user_id      = :uid::uuid
+        WHERE  c.user_id      = CAST(:uid AS uuid)
           AND  c.bitis_zamani IS NULL
         ORDER  BY c.baslangic_zamani DESC
         LIMIT  1
@@ -347,7 +347,7 @@ async def update_queue_capacity(
     _:  User = Depends(ADMIN),
 ):
     result = await db.execute(
-        text("UPDATE kuyruklar SET max_kapasite=:cap WHERE id=:qid::uuid RETURNING id::text"),
+        text("UPDATE kuyruklar SET max_kapasite=:cap WHERE id=CAST(:qid AS uuid) RETURNING id::text"),
         {"cap": body.max_kapasite, "qid": queue_id},
     )
     if not result.fetchone():
@@ -368,7 +368,7 @@ async def toggle_queue(
     row = (await db.execute(text("""
         UPDATE kuyruklar
         SET    aktif = NOT aktif
-        WHERE  id = :qid::uuid
+        WHERE  id = CAST(:qid AS uuid)
         RETURNING id::text, aktif, ad AS kuyruk_adi
     """), {"qid": queue_id})).fetchone()
     if not row:
@@ -391,10 +391,10 @@ async def end_break(
     """
     result = await db.execute(text("""
         UPDATE molalar
-        SET    bitis_zamani = NOW()
-        WHERE  user_id       = :uid::uuid
-          AND  bitis_zamani IS NULL
-          AND  onay_durumu  IN ('onaylandi', 'beklemede')
+        SET    bitis = NOW()
+        WHERE  user_id      = CAST(:uid AS uuid)
+          AND  bitis       IS NULL
+          AND  onay_durumu IN ('onaylandi', 'beklemede')
         RETURNING id::text
     """), {"uid": user_id})
     rows = result.fetchall()
@@ -411,9 +411,9 @@ async def end_break(
             INSERT INTO denetim_izleri
                 (user_id, aksiyon, tablo_adi, kayit_id, eski_deger, yeni_deger, tarih)
             VALUES
-                (:uid::uuid, 'override'::audit_action, 'molalar', :kid::uuid,
+                (CAST(:uid AS uuid), 'override'::audit_action, 'molalar', CAST(:kid AS uuid),
                  '{"onay_durumu":"beklemede"}'::jsonb,
-                 '{"bitis_zamani":"now","kaynak":"war_room_admin"}'::jsonb,
+                 '{"bitis":"now","kaynak":"war_room_admin"}'::jsonb,
                  NOW())
         """), {"uid": str(current_user.id), "kid": rows[0].id})
     except Exception:
@@ -437,7 +437,7 @@ async def send_instruction(
     """
     talimat_id = (await db.execute(text("""
         INSERT INTO talimatlar (gonderen_id, alici_id, baslik, icerik, durum)
-        VALUES (:gid::uuid, :aid::uuid, :bas, :ic, 'beklemede')
+        VALUES (CAST(:gid AS uuid), CAST(:aid AS uuid), :bas, :ic, 'beklemede')
         RETURNING id::text
     """), {
         "gid": str(current_user.id),
@@ -451,8 +451,8 @@ async def send_instruction(
             INSERT INTO bildirimler
                 (user_id, tip, baslik, mesaj, referans_tablo, referans_id, oncelik)
             VALUES
-                (:uid::uuid, 'talimat', '⚡ War Room Talimatı', :ic,
-                 'talimatlar', :ref::uuid, 2)
+                (CAST(:uid AS uuid), 'talimat', '⚡ War Room Talimatı', :ic,
+                 'talimatlar', CAST(:ref AS uuid), 2)
         """), {
             "uid": body.alici_id,
             "ic":  body.icerik,

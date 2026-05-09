@@ -13,13 +13,13 @@ import {
   ArrowLeft, Phone, Star, Zap, Coffee, Shield,
   Wifi, WifiOff, AlertTriangle, CheckCircle2,
   TrendingUp, Clock, ScrollText, Trophy, Activity,
-  History, Lock,
+  History, Lock, GraduationCap,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import { personnelApi } from "@/services/api";
+import { personnelApi, operationsApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { Panel } from "@/pages/admin/Overview";
 
@@ -264,6 +264,13 @@ function PerformanceTab({ performans }) {
 function SessionsTab({ oturumlar }) {
   const items = oturumlar || [];
 
+  const calcSure = (login, cikis) => {
+    if (!login || !cikis) return null;
+    const dk = Math.round((new Date(cikis) - new Date(login)) / 60000);
+    if (dk < 60) return `${dk}dk`;
+    return `${Math.floor(dk / 60)}s ${dk % 60}dk`;
+  };
+
   return (
     <Panel title="Son 14 Gün — Oturum Kayıtları" accentColor={C.busy}
       badge={items.length || null}>
@@ -275,13 +282,13 @@ function SessionsTab({ oturumlar }) {
         <>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "100px 100px 100px 110px 130px 1fr",
+            gridTemplateColumns: "100px 90px 90px 80px 90px 120px 1fr",
             padding: "0 8px 10px",
             color: C.muted, fontSize: 10, fontWeight: 700,
             textTransform: "uppercase", letterSpacing: "0.07em",
             borderBottom: `1px solid ${C.borderL}`,
           }}>
-            {["Tarih", "Giriş", "Çıkış", "Geç (dk)", "Durum", "IP"].map((h) =>
+            {["Tarih", "Giriş", "Çıkış", "Süre", "Geç (dk)", "Durum", "IP Adresi"].map((h) =>
               <span key={h}>{h}</span>
             )}
           </div>
@@ -289,10 +296,11 @@ function SessionsTab({ oturumlar }) {
           {items.map((s) => {
             const late     = (s.gec_giris_dk || 0) > 10;
             const slightly = (s.gec_giris_dk || 0) > 0 && !late;
+            const sure     = calcSure(s.login_zamani, s.cikis_zamani);
             return (
               <div key={s.id} style={{
                 display: "grid",
-                gridTemplateColumns: "100px 100px 100px 110px 130px 1fr",
+                gridTemplateColumns: "100px 90px 90px 80px 90px 120px 1fr",
                 padding: "11px 8px",
                 borderBottom: `1px solid ${C.borderL}`,
                 alignItems: "center",
@@ -312,6 +320,9 @@ function SessionsTab({ oturumlar }) {
                 }}>
                   {s.cikis_zamani ? fmtTime(s.cikis_zamani) : "AKTİF"}
                 </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: C.muted, fontFamily: "monospace" }}>
+                  {sure || "—"}
+                </span>
                 <span style={{
                   fontSize: 12, fontWeight: 800,
                   color: late ? C.alarm : slightly ? C.break : C.muted,
@@ -329,8 +340,21 @@ function SessionsTab({ oturumlar }) {
                   : slightly ? <Badge label="BİRAZ GEÇ"                       color={C.break}  small />
                              : <Badge label="ZAMANINDA"                       color={C.active} small />}
                 </span>
-                <span style={{ fontSize: 10.5, color: C.muted, fontFamily: "monospace" }}>
-                  {s.ip_adresi || "—"}
+                <span style={{ fontSize: 10.5, fontFamily: "monospace" }}>
+                  {s.ip_adresi ? (
+                    <a
+                      href={`https://whatismyipaddress.com/ip/${s.ip_adresi}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: C.busy, textDecoration: "none" }}
+                      onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+                      onMouseLeave={(e) => e.target.style.textDecoration = "none"}
+                    >
+                      {s.ip_adresi}
+                    </a>
+                  ) : (
+                    <span style={{ color: C.muted }}>Bilinmiyor</span>
+                  )}
                 </span>
               </div>
             );
@@ -630,6 +654,10 @@ export default function PersonnelDetail() {
   const [endBreakBusy,   setEndBreakBusy]   = useState(false);
   const [endBreakResult, setEndBreakResult] = useState(null);
 
+  const [trainBusy,   setTrainBusy]   = useState(false);
+  const [trainSent,   setTrainSent]   = useState(false);
+  const [trainResult, setTrainResult] = useState(null);
+
   const fetchDetails = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -670,6 +698,21 @@ export default function PersonnelDetail() {
         msg: err?.response?.data?.detail || "Aktif onaylı mola bulunamadı.",
       });
     } finally { setEndBreakBusy(false); }
+  };
+
+  const handleFlagTraining = async () => {
+    setTrainBusy(true); setTrainResult(null);
+    try {
+      await operationsApi.flagTraining({
+        user_id: profil.id,
+        neden: "Admin tarafından eğitime atandı (war room komuta)",
+      });
+      setTrainSent(true);
+      setTrainResult({ ok: true, msg: "Personel eğitime atandı." });
+      fetchDetails();
+    } catch (err) {
+      setTrainResult({ ok: false, msg: err?.response?.data?.detail || "İşlem başarısız." });
+    } finally { setTrainBusy(false); }
   };
 
   if (loading) {
@@ -831,6 +874,33 @@ export default function PersonnelDetail() {
               }} />
             </div>
           </div>
+
+          {/* EĞİTİME ATA */}
+          {isAdmin && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 160 }}>
+              <button
+                onClick={handleFlagTraining}
+                disabled={trainBusy || trainSent}
+                style={{
+                  padding: "10px 16px", borderRadius: 10, border: "none",
+                  background: trainSent
+                    ? "rgba(16,185,129,0.1)"
+                    : trainBusy ? "#e2e8f0"
+                    : `linear-gradient(135deg, #8b5cf6, #6366f1)`,
+                  color: trainSent ? C.active : trainBusy ? C.muted : "#fff",
+                  fontSize: 12, fontWeight: 800,
+                  cursor: trainSent || trainBusy ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                  border: trainSent ? `1px solid ${C.active}30` : "1px solid transparent",
+                  boxShadow: trainSent || trainBusy ? "none" : "0 2px 8px rgba(99,102,241,0.3)",
+                }}
+              >
+                <GraduationCap size={14} />
+                {trainBusy ? "Atanıyor..." : trainSent ? "Eğitimde" : "Eğitime Ata"}
+              </button>
+              {trainResult && <Toast kind={trainResult.ok ? "ok" : "err"} msg={trainResult.msg} />}
+            </div>
+          )}
 
           {/* MOLA OVERRIDE */}
           {profil.anlik_durum === "mola" && isAdmin && (

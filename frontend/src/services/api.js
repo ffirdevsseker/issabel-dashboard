@@ -121,11 +121,14 @@ export const headerApi = {
 /* ─── Admin · Canlı Operasyon War Room ────────────────────────────────────────
    Endpoint prefix: /admin/war-room                                             */
 export const warRoomApi = {
-  getActiveCalls:  ()               => api.get("/admin/war-room/active-calls"),
-  getQueues:       ()               => api.get("/admin/war-room/queues"),
-  getStaff:        ()               => api.get("/admin/war-room/staff"),
-  callAction:      (callId, body)   => api.post(`/admin/war-room/action/${callId}`, body),
-  updateCapacity:  (queueId, cap)   => api.patch(`/admin/war-room/queues/${queueId}/capacity`, { max_kapasite: cap }),
+  getActiveCalls:   ()               => api.get("/admin/war-room/active-calls"),
+  getQueues:        ()               => api.get("/admin/war-room/queues"),
+  getStaff:         ()               => api.get("/admin/war-room/staff"),
+  callAction:       (callId, body)   => api.post(`/admin/war-room/action/${callId}`, body),
+  updateCapacity:   (queueId, cap)   => api.patch(`/admin/war-room/queues/${queueId}/capacity`, { max_kapasite: cap }),
+  toggleQueue:      (queueId)        => api.patch(`/admin/war-room/queues/${queueId}/toggle`),
+  endBreak:         (userId)         => api.post(`/admin/war-room/actions/end-break/${userId}`),
+  sendInstruction:  (aliciId, icerik)=> api.post("/admin/war-room/actions/send-instruction", { alici_id: aliciId, icerik }),
 };
 
 /* ─── Staff · Personel Yönetim Merkezi ────────────────────────────────────────

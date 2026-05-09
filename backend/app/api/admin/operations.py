@@ -73,29 +73,33 @@ async def _audit(
     db: AsyncSession, admin_id: str, tablo: str, kayit_id: Optional[str],
     aksiyon: str, eski: dict, yeni: dict,
 ) -> None:
+    """
+    SAVEPOINT ile izole audit kaydı.
+    asyncpg'de try/except içinde DB hatası → connection error state → sonraki
+    db.commit() da başarısız olur. SAVEPOINT bunu önler.
+    """
     eski_json = json.dumps(eski, default=str, ensure_ascii=False)
     yeni_json = json.dumps(yeni, default=str, ensure_ascii=False)
+    # Gerçek denetim_izleri şeması:
+    #   islem_yapan_id (UUID), eylem (VARCHAR), hedef_tablo (VARCHAR),
+    #   hedef_id (VARCHAR), eski_veri (JSON), yeni_veri (JSON), created_at
     try:
-        if kayit_id:
-            await db.execute(text("""
-                INSERT INTO denetim_izleri
-                    (user_id, aksiyon, tablo_adi, kayit_id, eski_deger, yeni_deger, tarih)
-                VALUES
-                    (:uid::uuid, :aks::audit_action, :tablo, :kid::uuid,
-                     :eski::jsonb, :yeni::jsonb, NOW())
-            """), {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
-                   "kid": kayit_id, "eski": eski_json, "yeni": yeni_json})
-        else:
-            await db.execute(text("""
-                INSERT INTO denetim_izleri
-                    (user_id, aksiyon, tablo_adi, eski_deger, yeni_deger, tarih)
-                VALUES
-                    (:uid::uuid, :aks::audit_action, :tablo,
-                     :eski::jsonb, :yeni::jsonb, NOW())
-            """), {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
-                   "eski": eski_json, "yeni": yeni_json})
+        await db.execute(text("SAVEPOINT _audit_sp"))
+        await db.execute(text("""
+            INSERT INTO denetim_izleri
+                (islem_yapan_id, eylem, hedef_tablo, hedef_id,
+                 eski_veri, yeni_veri, created_at)
+            VALUES
+                (CAST(:uid AS uuid), :aks, :tablo, :kid,
+                 CAST(:eski AS json), CAST(:yeni AS json), NOW())
+        """), {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
+               "kid": kayit_id or "", "eski": eski_json, "yeni": yeni_json})
+        await db.execute(text("RELEASE SAVEPOINT _audit_sp"))
     except Exception:
-        pass  # audit kaybedilse de işlem devam etmeli
+        try:
+            await db.execute(text("ROLLBACK TO SAVEPOINT _audit_sp"))
+        except Exception:
+            pass  # audit kaybedilse de işlem devam etmeli
 
 
 # ═══════════════════════════ 1. SUMMARY (KPI Şeridi) ═════════════════════════
@@ -275,13 +279,13 @@ async def supervisors_matrix(
                 WHERE sk.supervisor_id = s.id
                   AND sk.durum::text IN ('beklemede','incelemede')
             )                                                             AS bekleyen_sikayet,
-            -- Bugün verdiği karar sayısı (audit'ten)
+            -- Bugün verdiği karar sayısı (audit'ten — gerçek kolon adları)
             (
                 SELECT COUNT(*)
                 FROM denetim_izleri di
-                WHERE di.user_id = s.id
-                  AND di.tarih >= CURRENT_DATE
-                  AND di.aksiyon::text IN ('update','override','xp_correction')
+                WHERE di.islem_yapan_id = s.id
+                  AND di.created_at >= CURRENT_DATE
+                  AND di.eylem IN ('update','override','xp_correction')
             )                                                             AS bugun_karar
         FROM mh_supervisors s
         LEFT JOIN supervisor_ekip se ON se.supervisor_id = s.id
@@ -444,35 +448,37 @@ async def audit_logs(
     Supervizör eylemleri (mola onayı, XP düzeltme, override).
     only_overrides=true ise sadece override/xp_correction filtresi.
     """
-    aksiyon_filter = ""
+    # Gerçek denetim_izleri kolonları: islem_yapan_id, eylem, hedef_tablo,
+    # hedef_id, eski_veri, yeni_veri, created_at
+    aksiyon_filter_sql = ""
     if only_overrides:
-        aksiyon_filter = "AND di.aksiyon::text IN ('override','xp_correction')"
+        aksiyon_filter_sql = "AND di.eylem IN ('override','xp_correction')"
 
     rows = (await db.execute(text(f"""
         SELECT
-            di.id                                          AS id,
-            di.aksiyon::text                               AS aksiyon,
-            di.tablo_adi,
-            di.kayit_id::text                              AS kayit_id,
-            di.eski_deger,
-            di.yeni_deger,
-            di.tarih,
+            di.islem_yapan_id::text                        AS yapan_id,
+            di.eylem                                       AS aksiyon,
+            di.hedef_tablo                                 AS tablo_adi,
+            di.hedef_id                                    AS kayit_id,
+            di.eski_veri                                   AS eski_deger,
+            di.yeni_veri                                   AS yeni_deger,
+            di.created_at                                  AS tarih,
             u.id::text                                     AS user_id,
             u.ad_soyad                                     AS user_ad,
             r.ad                                           AS user_rol
         FROM denetim_izleri di
-        JOIN kullanicilar  u ON u.id = di.user_id
+        JOIN kullanicilar  u ON u.id = di.islem_yapan_id
         JOIN roller        r ON r.id = u.rol_id
         WHERE LOWER(r.ad) = 'supervisor'
-          AND di.tarih >= CURRENT_DATE - INTERVAL '7 days'
-          {aksiyon_filter}
-        ORDER BY di.tarih DESC
+          AND di.created_at >= CURRENT_DATE - INTERVAL '7 days'
+          {aksiyon_filter_sql}
+        ORDER BY di.created_at DESC
         LIMIT :lim
     """), {"lim": limit})).fetchall()
 
     return [
         {
-            "id":          int(r.id),
+            "id":          r.yapan_id,
             "aksiyon":     r.aksiyon,
             "tablo_adi":   r.tablo_adi,
             "kayit_id":    r.kayit_id,
@@ -646,17 +652,55 @@ async def training_flag(
     """
     Personeli eğitime gönder — talimatlar'a kayıt + audit.
     """
-    talimat_id = (await db.execute(text("""
-        INSERT INTO talimatlar (gonderen_id, alici_id, baslik, icerik, durum)
-        VALUES (:gid::uuid, :aid::uuid,
-                'Eğitim Programı — Düşük CSAT/Duygu Skorlu Çağrı',
-                :ic, 'beklemede')
-        RETURNING id::text
-    """), {
-        "gid": str(current_user.id),
-        "aid": body.user_id,
-        "ic":  f"Sebep: {body.neden}\nReferans çağrı: {body.cagri_id or '—'}",
-    })).scalar()
+    # Kullanıcının var olduğunu doğrula (FK ihlalinden kaçın)
+    exists = (await db.execute(
+        text("SELECT 1 FROM kullanicilar WHERE id = CAST(:uid AS uuid) AND silindi_mi = FALSE"),
+        {"uid": body.user_id},
+    )).fetchone()
+    if not exists:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Personel bulunamadı")
+
+    # talimatlar.durum enum değeri sisteme göre değişebilir; SAVEPOINT ile güvenli INSERT
+    talimat_id = None
+    try:
+        await db.execute(text("SAVEPOINT _tf_sp"))
+        talimat_id = (await db.execute(text("""
+            INSERT INTO talimatlar (gonderen_id, alici_id, baslik, icerik, durum)
+            VALUES (CAST(:gid AS uuid), CAST(:aid AS uuid),
+                    'Eğitim Programı — Düşük CSAT/Duygu Skorlu Çağrı',
+                    :ic, 'beklemede')
+            RETURNING id::text
+        """), {
+            "gid": str(current_user.id),
+            "aid": body.user_id,
+            "ic":  f"Sebep: {body.neden}\nReferans çağrı: {body.cagri_id or '—'}",
+        })).scalar()
+        await db.execute(text("RELEASE SAVEPOINT _tf_sp"))
+    except Exception:
+        # durum enum'u 'beklemede' değil; fallback: enum cast olmadan dene
+        try:
+            await db.execute(text("ROLLBACK TO SAVEPOINT _tf_sp"))
+            await db.execute(text("SAVEPOINT _tf_sp2"))
+            talimat_id = (await db.execute(text("""
+                INSERT INTO talimatlar (gonderen_id, alici_id, baslik, icerik)
+                VALUES (CAST(:gid AS uuid), CAST(:aid AS uuid),
+                        'Eğitim Programı — Düşük CSAT/Duygu Skorlu Çağrı', :ic)
+                RETURNING id::text
+            """), {
+                "gid": str(current_user.id),
+                "aid": body.user_id,
+                "ic":  f"Sebep: {body.neden}\nReferans çağrı: {body.cagri_id or '—'}",
+            })).scalar()
+            await db.execute(text("RELEASE SAVEPOINT _tf_sp2"))
+        except Exception as e2:
+            try:
+                await db.execute(text("ROLLBACK TO SAVEPOINT _tf_sp2"))
+            except Exception:
+                pass
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                f"Eğitim kaydı oluşturulamadı: {e2}",
+            )
 
     await _audit(
         db, str(current_user.id), "talimatlar", talimat_id, "create",

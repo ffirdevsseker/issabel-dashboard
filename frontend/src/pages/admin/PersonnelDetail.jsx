@@ -189,7 +189,7 @@ function PerformanceTab({ performans }) {
             Bu personel için son 7 günde çağrı verisi bulunamadı
           </div>
         ) : (
-          <div style={{ height: 220 }}>
+          <div style={{ width: "100%", height: 220, minHeight: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
                 <defs>

@@ -78,42 +78,43 @@ class ManualXpBody(BaseModel):
 # ═══════════════════════════ Audit Helper ════════════════════════════════════
 
 async def _audit(
-    db: AsyncSession, admin_id: str, tablo: str, kayit_id: str,
+    db: AsyncSession, admin_id: str, tablo: str, kayit_id: Optional[str],
     aksiyon: str, eski: dict, yeni: dict,
 ) -> None:
-    """denetim_izleri'ne JSONB ile kaydeder. aksiyon enum: override / xp_correction."""
+    """
+    denetim_izleri'ne JSONB ile kaydeder.
+
+    SAVEPOINT kullanır: asyncpg'de try/except içindeki bir DB hatası connection'ı
+    "error state"'e alır; sonraki db.commit() da başarısız olur.
+    SAVEPOINT → ROLLBACK TO SAVEPOINT ile session state korunur.
+    """
     eski_json = json.dumps(eski, default=str, ensure_ascii=False)
     yeni_json = json.dumps(yeni, default=str, ensure_ascii=False)
+
+    # Gerçek denetim_izleri şeması:
+    #   islem_yapan_id (UUID), eylem (VARCHAR), hedef_tablo (VARCHAR),
+    #   hedef_id (VARCHAR), eski_veri (JSON), yeni_veri (JSON), created_at
     try:
+        await db.execute(text("SAVEPOINT _audit_sp"))
         await db.execute(
             text("""
                 INSERT INTO denetim_izleri
-                    (user_id, aksiyon, tablo_adi, kayit_id,
-                     eski_deger, yeni_deger, tarih)
+                    (islem_yapan_id, eylem, hedef_tablo, hedef_id,
+                     eski_veri, yeni_veri, created_at)
                 VALUES
-                    (CAST(:uid AS uuid), CAST(:aks AS audit_action), :tablo, CAST(:kid AS uuid),
-                     CAST(:eski AS jsonb), CAST(:yeni AS jsonb), NOW())
+                    (CAST(:uid AS uuid), :aks, :tablo, :kid,
+                     CAST(:eski AS json), CAST(:yeni AS json), NOW())
             """),
             {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
-             "kid": kayit_id, "eski": eski_json, "yeni": yeni_json},
+             "kid": kayit_id or "", "eski": eski_json, "yeni": yeni_json},
         )
+        await db.execute(text("RELEASE SAVEPOINT _audit_sp"))
     except Exception:
-        # kayit_id UUID değilse fallback (örn xp_hareketleri BIGSERIAL)
+        # Savepoint'i geri al — session state temiz kalır, commit çalışmaya devam eder
         try:
-            await db.execute(
-                text("""
-                    INSERT INTO denetim_izleri
-                        (user_id, aksiyon, tablo_adi,
-                         eski_deger, yeni_deger, tarih)
-                    VALUES
-                        (CAST(:uid AS uuid), CAST(:aks AS audit_action), :tablo,
-                         CAST(:eski AS jsonb), CAST(:yeni AS jsonb), NOW())
-                """),
-                {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
-                 "eski": eski_json, "yeni": yeni_json},
-            )
+            await db.execute(text("ROLLBACK TO SAVEPOINT _audit_sp"))
         except Exception:
-            pass  # audit kaybedilse de işlem devam etmeli
+            pass
 
 
 # ═══════════════════════════ 1. Filter Seçenekleri ═══════════════════════════
@@ -550,9 +551,9 @@ async def override_end_break(
         text("""
             UPDATE molalar
             SET bitis = :now
-            WHERE user_id     = CAST(:uid AS uuid)
-              AND bitis        IS NULL
-              AND onay_durumu  = 'onaylandi'
+            WHERE user_id          = CAST(:uid AS uuid)
+              AND bitis             IS NULL
+              AND onay_durumu::text = 'onaylandi'
             RETURNING id::text AS id, baslangic
         """),
         {"now": now, "uid": body.user_id},

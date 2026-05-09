@@ -143,4 +143,20 @@ export const authApi = {
   getDashboardLayout: () => api.get("/auth/dashboard-layout"),
 };
 
+/* ─── Admin · Otomasyon Kuralları ─────────────────────────────────────────────
+   Endpoint prefix: /admin/rules  (rules.py)                                   */
+export const rulesApi = {
+  getAll:  ()            => api.get("/admin/rules"),
+  create:  (data)        => api.post("/admin/rules", data),
+  update:  (id, data)    => api.put(`/admin/rules/${id}`, data),
+  toggle:  (id, data)    => api.patch(`/admin/rules/${id}/toggle`, data),
+  delete:  (id)          => api.delete(`/admin/rules/${id}`),
+};
+
+/* ─── Admin · Sistem Sağlığı & AI İçgörüler ──────────────────────────────────
+   Endpoint prefix: /admin/system  (system_health.py)                          */
+export const systemHealthApi = {
+  getInsights: () => api.get("/admin/system/ai-insights"),
+};
+
 export default api;

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   BarChart3,
   Bell,
+  BrainCircuit,
   ChevronRight,
   Coffee,
   Headphones,
@@ -15,6 +16,7 @@ import {
   Phone,
   Radio,
   Search,
+  Settings2,
   Shield,
   UserCheck,
   Users,
@@ -27,10 +29,11 @@ import { headerApi } from "@/services/api";
 import logoCompact from "@/assets/logo2.png";
 
 const ADMIN_NAV = [
-  { label: "Genel Bakış",     to: "/admin",            icon: LayoutDashboard },
-  { label: "Personel",        to: "/admin/personnel",  icon: Users           },
-  { label: "Canlı Operasyon", to: "/admin/operations", icon: Radio           },
-  { label: "Sistem & Raporlar", to: "/admin/reports",  icon: BarChart3       },
+  { label: "Genel Bakış",        to: "/admin",                icon: LayoutDashboard },
+  { label: "Personel",           to: "/admin/personnel",      icon: Users           },
+  { label: "Canlı Operasyon",    to: "/admin/operations",     icon: Radio           },
+  { label: "Otomasyon & Kurallar", to: "/admin/automation",   icon: Settings2       },
+  { label: "Sistem Sağlığı",     to: "/admin/system-health",  icon: BrainCircuit    },
 ];
 
 // Sağlık renkleri

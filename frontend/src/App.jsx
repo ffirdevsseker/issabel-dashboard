@@ -17,8 +17,10 @@ import AdminLayout from "@/pages/admin/Layout";
 import AdminOverview from "@/pages/admin/Overview";
 import PersonnelPage from "@/pages/admin/Personnel";
 import PersonnelDetailPage from "@/pages/admin/PersonnelDetail";
-import OperationsPage from "@/pages/admin/Operations";
-import AdminReports from "@/pages/admin/Reports";
+import OperationsPage    from "@/pages/admin/Operations";
+import AdminReports     from "@/pages/admin/Reports";
+import AutomationPage   from "@/pages/admin/Automation";
+import SystemHealthPage from "@/pages/admin/SystemHealth";
 
 
 import SupervisorLayout from "@/pages/supervisor/Layout";
@@ -91,6 +93,8 @@ export default function App() {
             <Route path="personnel/:id" element={<PersonnelDetailPage />} />
             <Route path="operations"    element={<OperationsPage />} />
             <Route path="reports"       element={<AdminReports />} />
+            <Route path="automation"    element={<AutomationPage />} />
+            <Route path="system-health" element={<SystemHealthPage />} />
           </Route>
         </Routes>
       </CallProvider>

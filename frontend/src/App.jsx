@@ -34,7 +34,6 @@ import SupervisorGamification from "@/pages/supervisor/Gamification";
 import SupervisorReports from "@/pages/supervisor/Reports";
 import SupervisorSettings from "@/pages/supervisor/Settings";
 
-import UniversalDashboard from "@/pages/UniversalDashboard";
 
 export default function App() {
   return (
@@ -52,7 +51,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<UniversalDashboard />} />
+            <Route path="/" element={<Dashboard />} />
             <Route path="/calls" element={<Calls />} />
             <Route path="/active-calls" element={<ActiveCalls />} />
             <Route path="/performance" element={<Performance />} />

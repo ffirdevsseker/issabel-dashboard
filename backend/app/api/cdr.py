@@ -29,8 +29,9 @@ async def recent_calls(
 
 @router.get("/stats", response_model=CDRStats)
 async def call_stats(
+    today: bool = Query(False, description="Sadece bugünün verilerini döner"),
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
     uid = _user_id_for_user(current_user)
-    return await cdr_service.get_call_stats(db, user_id=uid)
+    return await cdr_service.get_call_stats(db, user_id=uid, today_only=today)

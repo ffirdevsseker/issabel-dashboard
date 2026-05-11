@@ -34,7 +34,7 @@ api.interceptors.response.use(
 // CDR endpoint'leri
 export const cdrApi = {
   getRecent: (limit = 50) => api.get(`/cdr/recent?limit=${limit}`),
-  getStats: () => api.get("/cdr/stats"),
+  getStats: (today = false) => api.get(`/cdr/stats${today ? "?today=true" : ""}`),
 };
 
 export const supervisorApi = {
@@ -50,7 +50,10 @@ export const supervisorApi = {
 };
 
 export const agentApi = {
-  getKbArticles: () => api.get("/kb/articles"),
+  getKbArticles:   ()   => api.get("/kb/articles"),
+  getTodayStats:   ()   => api.get("/agent/stats/today"),
+  getPriorities:   ()   => api.get("/agent/priorities"),
+  getCallbackList: ()   => api.get("/agent/callbacks"),
 };
 
 export const adminApi = {

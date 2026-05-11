@@ -40,3 +40,21 @@
     @apply bg-background text-foreground;
   }
 }
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(-5%) rotate(-3deg); }
+  50% { transform: translateY(0) rotate(3deg); }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s ease-in-out infinite;
+}

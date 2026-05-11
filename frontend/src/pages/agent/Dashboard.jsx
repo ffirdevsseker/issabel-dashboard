@@ -1,106 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Phone, PhoneMissed, Clock, Coffee, TrendingUp, TrendingDown, Minus, X, ChevronLeft, ChevronRight, RefreshCw, PhoneOutgoing, AlertCircle, Target, Trophy, Eye, EyeOff, Zap, CheckCircle2, Timer } from "lucide-react";
+import { Phone, PhoneMissed, Clock, TrendingUp, TrendingDown, Minus, X, ChevronLeft, ChevronRight, RefreshCw, AlertCircle, Target, Trophy, Eye, EyeOff, Zap, CheckCircle2, Timer } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from "recharts";
 import { useAuth } from "@/context/AuthContext";
 import { useQueueStatus } from "@/context/QueueStatusContext";
-import { cdrApi, supervisorApi } from "@/services/api";
-
-// Mock sparkline verisi
-const mockTrend = (base, variance, count = 10) =>
-  Array.from({ length: count }, (_, i) => ({
-    i,
-    v: Math.max(0, base + Math.floor(Math.random() * variance - variance / 2)),
-  }));
+import { cdrApi, supervisorApi, agentApi } from "@/services/api";
 
 
-const CALLBACK_LIMIT = 8;
-const MISSED_DISPOSITIONS = new Set(["NO ANSWER", "BUSY", "FAILED"]);
-
-const CALLBACK_REASON = {
-  "NO ANSWER": {
-    issue: "Aramaya Dön",
-    detail: "Cevapsız Çağrı",
-    tone: "text-red-600 bg-red-50 border-red-200",
-  },
-  BUSY: {
-    issue: "Hat Yeniden Dene",
-    detail: "Hat Meşgul",
-    tone: "text-amber-700 bg-amber-50 border-amber-200",
-  },
-  FAILED: {
-    issue: "Tekrar Kontrol",
-    detail: "Çağrı Başarısız",
-    tone: "text-slate-600 bg-slate-100 border-slate-200",
-  },
-};
-
-const normalizeNumber = (value = "") => String(value).replace(/[^\d+]/g, "").trim();
-
-const parseClid = (clid = "") => {
-  const raw = String(clid || "").trim();
-  if (!raw) return { name: "", number: "" };
-
-  const angled = raw.match(/^(.*)<([^>]+)>$/);
-  if (angled) {
-    return {
-      name: angled[1].replace(/"/g, "").trim(),
-      number: normalizeNumber(angled[2]),
-    };
-  }
-
-  const possibleNumber = normalizeNumber(raw);
-  return {
-    name: possibleNumber ? "" : raw,
-    number: possibleNumber,
-  };
-};
-
-const formatAgeLabel = (calldate) => {
-  const now = Date.now();
-  const diffMin = Math.max(0, Math.floor((now - new Date(calldate).getTime()) / 60000));
-  if (diffMin < 1) return "şimdi";
-  if (diffMin < 60) return `${diffMin} dk`; 
-  const h = Math.floor(diffMin / 60);
-  const m = diffMin % 60;
-  return `${h}s ${m}d`;
-};
-
-const mapCallbackItems = (cdrRows = []) => {
-  const byNumber = new Map();
-
-  cdrRows
-    .filter((row) => MISSED_DISPOSITIONS.has(String(row.disposition || "").toUpperCase()))
-    .sort((a, b) => new Date(b.calldate).getTime() - new Date(a.calldate).getTime())
-    .forEach((row) => {
-      const disposition = String(row.disposition || "").toUpperCase();
-      const clid = parseClid(row.clid);
-      const src = normalizeNumber(row.src);
-      const dst = normalizeNumber(row.dst);
-      const number = [clid.number, src, dst].find((candidate) => candidate && candidate.length >= 7)
-        || [clid.number, src, dst].find(Boolean)
-        || "";
-
-      if (!number || byNumber.has(number)) return;
-
-      const shortNumber = number.length >= 4 ? number.slice(-4) : number;
-      byNumber.set(number, {
-        id: row.uniqueid,
-        name: clid.name || `Müşteri ${shortNumber}`,
-        number,
-        disposition,
-        issue: CALLBACK_REASON[disposition]?.issue || "Geri Arama",
-        detail: CALLBACK_REASON[disposition]?.detail || "Cevapsız",
-        time: new Date(row.calldate).toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        age: formatAgeLabel(row.calldate),
-      });
-    });
-
-  return Array.from(byNumber.values()).slice(0, CALLBACK_LIMIT);
-};
 
 const initials = (name = "") => {
   const tokens = name.trim().split(/\s+/).filter(Boolean);
@@ -116,9 +22,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    cdrApi.getStats().then((res) => {
-      setStats(res.data);
-    }).finally(() => setLoading(false));
+    agentApi.getTodayStats()
+      .then((res) => setStats(res.data))
+      .catch(() => cdrApi.getStats(true).then((res) => setStats(res.data)))
+      .finally(() => setLoading(false));
   }, []);
 
   const greeting = () => {
@@ -132,6 +39,11 @@ export default function Dashboard() {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
+  const missedTotal = stats
+    ? (stats.no_answer_calls || 0) + (stats.busy_calls || 0) + (stats.failed_calls || 0)
+    : 0;
+  const answeredTotal = stats ? Math.max(0, (stats.total_calls || 0) - missedTotal) : 0;
+
   const kpiCards = stats ? [
     {
       id: "calls",
@@ -141,7 +53,29 @@ export default function Dashboard() {
       diff: stats.total_calls > 0 ? 1 : 0,
       icon: Phone,
       color: "blue",
-      trend: mockTrend(stats.total_calls, 8),
+      trend: [],
+      route: "/calls",
+    },
+    {
+      id: "answered",
+      title: "Cevaplanan Çağrı",
+      value: answeredTotal,
+      sub: "Başarıyla yanıtlandı",
+      diff: answeredTotal > 0 ? 1 : 0,
+      icon: Phone,
+      color: "green",
+      trend: [],
+      route: "/calls",
+    },
+    {
+      id: "missed",
+      title: "Cevapsız Çağrı",
+      value: missedTotal,
+      sub: "Toplam",
+      diff: -missedTotal,
+      icon: PhoneMissed,
+      color: missedTotal === 0 ? "green" : missedTotal >= 3 ? "red" : "orange",
+      trend: [],
       route: "/calls",
     },
     {
@@ -152,29 +86,7 @@ export default function Dashboard() {
       diff: stats.avg_duration_seconds < 300 ? 1 : -1,
       icon: Clock,
       color: stats.avg_duration_seconds <= 300 ? "green" : "orange",
-      trend: mockTrend(stats.avg_duration_seconds, 40),
-      route: "/performance",
-    },
-    {
-      id: "missed",
-      title: "Cevapsız Çağrı",
-      value: stats.no_answer_calls + stats.busy_calls + stats.failed_calls,
-      sub: "Toplam",
-      diff: -(stats.no_answer_calls + stats.busy_calls + stats.failed_calls),
-      icon: PhoneMissed,
-      color: (stats.no_answer_calls + stats.busy_calls + stats.failed_calls) === 0 ? "green" : (stats.no_answer_calls + stats.busy_calls + stats.failed_calls) >= 3 ? "red" : "orange",
-      trend: mockTrend(2, 3),
-      route: "/calls",
-    },
-    {
-      id: "break",
-      title: "Mola Kullanımı",
-      value: "18d",
-      sub: "60 dakika limit",
-      percent: 30,
-      icon: Coffee,
-      color: "purple",
-      trend: mockTrend(18, 5),
+      trend: [],
       route: "/performance",
     },
   ] : [];
@@ -228,21 +140,17 @@ function CallbackListWidget() {
 
   const loadCallbacks = async ({ silent = false } = {}) => {
     try {
-      if (!silent) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
 
-      const res = await cdrApi.getRecent(220);
-      setItems(mapCallbackItems(res.data || []));
+      const res = await agentApi.getCallbackList();
+      setItems(Array.isArray(res.data) ? res.data : []);
       setLastSynced(new Date());
+    } catch {
+      setItems([]);
     } finally {
-      if (!silent) {
-        setLoading(false);
-      } else {
-        setRefreshing(false);
-      }
+      if (!silent) setLoading(false);
+      else setRefreshing(false);
     }
   };
 
@@ -255,13 +163,8 @@ function CallbackListWidget() {
     return () => clearInterval(timer);
   }, []);
 
-  const callNow = (number) => {
-    if (!number) return;
-    window.location.href = `tel:${number}`;
-  };
-
-  const criticalCount = items.filter((item) => item.disposition === "NO ANSWER").length;
-  const busyCount = items.filter((item) => item.disposition === "BUSY").length;
+  const criticalCount = items.filter((item) => item.durum === "cevaplanmadi").length;
+  const busyCount     = items.filter((item) => item.durum === "mesgul").length;
 
   return (
     <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
@@ -333,8 +236,8 @@ function CallbackListWidget() {
         )}
 
         {!loading && items.map((item) => {
-          const isNO = item.disposition === "NO ANSWER";
-          const isBUSY = item.disposition === "BUSY";
+          const isNO   = item.durum === "cevaplanmadi";
+          const isBUSY = item.durum === "mesgul";
 
           return (
             <div
@@ -342,19 +245,19 @@ function CallbackListWidget() {
               className="group relative flex items-center gap-3 px-4 py-3 hover:bg-white transition-colors duration-150"
             >
               {/* Left priority stripe */}
-              <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full ${
-                isNO ? "bg-red-400" : isBUSY ? "bg-amber-400" : "bg-slate-300"
+              <span className={`absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-9 rounded-r-full transition-all duration-200 ${
+                isNO ? "bg-red-400" : isBUSY ? "bg-amber-400" : "bg-blue-300"
               }`} />
 
               {/* Avatar */}
-              <div className={`h-9 w-9 shrink-0 rounded-xl flex items-center justify-center text-[11px] font-bold shadow-sm ${
+              <div className={`h-9 w-9 shrink-0 rounded-2xl flex items-center justify-center shadow-sm ${
                 isNO
                   ? "bg-red-100 text-red-700"
                   : isBUSY
                     ? "bg-amber-100 text-amber-700"
-                    : "bg-slate-200 text-slate-600"
+                    : "bg-blue-50 text-blue-700"
               }`}>
-                {initials(item.name)}
+                <PhoneMissed className="h-4 w-4" />
               </div>
 
               {/* Info */}
@@ -366,29 +269,32 @@ function CallbackListWidget() {
                       ? "bg-red-100 text-red-600"
                       : isBUSY
                         ? "bg-amber-100 text-amber-700"
-                        : "bg-slate-100 text-slate-500"
+                        : "bg-blue-100 text-blue-600"
                   }`}>
                     {item.detail}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono truncate">{item.number}</div>
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                  <Clock className="h-3 w-3 shrink-0" />
+                  <span className="font-mono">{item.time}</span>
+                  {item.kategori && (
+                    <>
+                      <span className="text-slate-200">·</span>
+                      <span className="truncate">{item.kategori}</span>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Time + CTA */}
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
-                <div className="text-[10px] text-slate-400 leading-none">{item.age} önce</div>
-                <button
-                  type="button"
-                  onClick={() => callNow(item.number)}
-                  className={`h-7 px-2.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all shadow-sm ${
-                    isNO
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-slate-800 hover:bg-slate-700 text-white"
-                  }`}
-                >
-                  <PhoneOutgoing className="h-3 w-3" />
-                  Ara
-                </button>
+              {/* Age badge — how long ago */}
+              <div className={`shrink-0 text-center min-w-[46px] px-2 py-1 rounded-xl text-[10px] font-bold ${
+                isNO
+                  ? "bg-red-50 text-red-500"
+                  : isBUSY
+                    ? "bg-amber-50 text-amber-600"
+                    : "bg-slate-50 text-slate-500"
+              }`}>
+                {item.age}
               </div>
             </div>
           );
@@ -824,69 +730,56 @@ function KPICard({ card, onClick }) {
 
 
 /* ── GÜNÜN ÖNCELİKLERİ ─────────────────────────────────────── */
+const PRIORITY_STYLE = {
+  critical: { icon: AlertCircle, accent: "#ef4444", accentBg: "bg-red-500/15",     accentText: "text-red-400",     accentBorder: "border-red-500/25",     badge: "Kritik",   badgeCls: "bg-red-500/20 text-red-400 border border-red-500/30" },
+  high:     { icon: AlertCircle, accent: "#ef4444", accentBg: "bg-red-500/15",     accentText: "text-red-400",     accentBorder: "border-red-500/25",     badge: "Yüksek",   badgeCls: "bg-red-500/20 text-red-400 border border-red-500/30" },
+  medium:   { icon: Timer,       accent: "#f59e0b", accentBg: "bg-amber-500/15",   accentText: "text-amber-400",   accentBorder: "border-amber-500/25",   badge: "Bekliyor", badgeCls: "bg-amber-500/20 text-amber-400 border border-amber-500/30" },
+  low:      { icon: CheckCircle2,accent: "#10b981", accentBg: "bg-emerald-500/15", accentText: "text-emerald-400", accentBorder: "border-emerald-500/25", badge: "Normal",   badgeCls: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" },
+};
+
+function getPriorityStyle(level = "") {
+  const k = String(level).toLowerCase();
+  if (k === "critical" || k === "kritik")  return PRIORITY_STYLE.critical;
+  if (k === "high"     || k === "yüksek")  return PRIORITY_STYLE.high;
+  if (k === "medium"   || k === "orta")    return PRIORITY_STYLE.medium;
+  return PRIORITY_STYLE.low;
+}
+
 function DailyPrioritiesWidget() {
-  const priorities = [
-    {
-      id: 1,
-      icon: AlertCircle,
-      accent: "#ef4444",
-      accentBg: "bg-red-500/15",
-      accentText: "text-red-400",
-      accentBorder: "border-red-500/25",
-      badge: "Kritik",
-      badgeCls: "bg-red-500/20 text-red-400 border border-red-500/30",
-      title: "En eski cevapsız: 2s 14dk",
-      detail: "Müşteri 1001 hâlâ aranmadı",
-      action: "Şimdi Ara",
-      actionCls: "bg-red-500 hover:bg-red-600 text-white",
-    },
-    {
-      id: 2,
-      icon: Target,
-      accent: "#3b82f6",
-      accentBg: "bg-blue-500/15",
-      accentText: "text-blue-400",
-      accentBorder: "border-blue-500/25",
-      badge: "Hedef",
-      badgeCls: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
-      title: "Hedefe 7 çağrı kaldı",
-      detail: "Bugün 18 / 25 çağrı tamamlandı",
-      progress: 72,
-      progressColor: "bg-blue-500",
-      action: null,
-    },
-    {
-      id: 3,
-      icon: Timer,
-      accent: "#f59e0b",
-      accentBg: "bg-amber-500/15",
-      accentText: "text-amber-400",
-      accentBorder: "border-amber-500/25",
-      badge: "Bekliyor",
-      badgeCls: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
-      title: "3 müşteri geri dönülmedi",
-      detail: "Bugün kaçırılan & aranmayan",
-      action: "Listeyi Gör",
-      actionCls: "bg-amber-500 hover:bg-amber-600 text-white",
-    },
-    {
-      id: 4,
-      icon: CheckCircle2,
-      accent: "#10b981",
-      accentBg: "bg-emerald-500/15",
-      accentText: "text-emerald-400",
-      accentBorder: "border-emerald-500/25",
-      badge: "İyi",
-      badgeCls: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-      title: "Ort. süre hedefindesin",
-      detail: "1d 44s — 5d 00s limitinin altında",
-      action: null,
-    },
-  ];
+  const [priorities, setPriorities] = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasError, setHasError]     = useState(false);
+
+  const loadPriorities = async ({ silent = false } = {}) => {
+    try {
+      if (!silent) setLoading(true);
+      else setRefreshing(true);
+      setHasError(false);
+      const res = await agentApi.getPriorities();
+      setPriorities(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setHasError(true);
+      setPriorities([]);
+    } finally {
+      if (!silent) setLoading(false);
+      else setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPriorities();
+    const timer = setInterval(() => loadPriorities({ silent: true }), 120000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const criticalCount  = priorities.filter((p) => ["critical","high","kritik","yüksek"].includes(String(p.priority ?? p.oncelik ?? "").toLowerCase())).length;
+  const completedCount = priorities.filter((p) => ["completed","tamamlandi"].includes(String(p.status ?? p.durum ?? "").toLowerCase())).length;
+  const pendingCount   = priorities.length - completedCount;
 
   return (
     <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
-      {/* Header — Geri Arama ile aynı dil */}
+      {/* Header */}
       <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div>
@@ -898,69 +791,106 @@ function DailyPrioritiesWidget() {
             </div>
             <h3 className="text-[15px] font-bold text-white leading-tight">Bugün Ne Yapmalısın?</h3>
           </div>
-          <span className="shrink-0 text-[10px] font-semibold text-slate-400 bg-white/10 border border-white/15 rounded-lg px-2 py-1">
-            {new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "short" })}
-          </span>
+          <button
+            type="button"
+            onClick={() => loadPriorities({ silent: true })}
+            className="h-7 w-7 rounded-lg bg-white/10 hover:bg-white/20 text-white/60 hover:text-white flex items-center justify-center transition-all"
+            aria-label="Yenile"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
         </div>
 
         {/* 3-stat mini row */}
         <div className="grid grid-cols-3 gap-1.5">
           <div className="rounded-xl bg-red-500/20 border border-red-500/30 px-2 py-2 text-center">
             <div className="text-[9px] uppercase tracking-wide text-red-400 mb-0.5">Kritik</div>
-            <div className="text-sm font-bold text-red-300 tabular-nums">1</div>
+            <div className="text-sm font-bold text-red-300 tabular-nums">{loading ? "–" : criticalCount}</div>
           </div>
           <div className="rounded-xl bg-amber-500/15 border border-amber-500/25 px-2 py-2 text-center">
             <div className="text-[9px] uppercase tracking-wide text-amber-400 mb-0.5">Bekleyen</div>
-            <div className="text-sm font-bold text-amber-300 tabular-nums">3</div>
+            <div className="text-sm font-bold text-amber-300 tabular-nums">{loading ? "–" : pendingCount}</div>
           </div>
-          <div className="rounded-xl bg-white/8 border border-white/10 px-2 py-2 text-center">
-            <div className="text-[9px] uppercase tracking-wide text-slate-400 mb-0.5">Tamamlanan</div>
-            <div className="text-sm font-bold text-white tabular-nums">18</div>
+          <div className="rounded-xl bg-emerald-500/15 border border-emerald-500/25 px-2 py-2 text-center">
+            <div className="text-[9px] uppercase tracking-wide text-emerald-400 mb-0.5">Tamamlanan</div>
+            <div className="text-sm font-bold text-emerald-300 tabular-nums">{loading ? "–" : completedCount}</div>
           </div>
         </div>
       </div>
 
       {/* Öncelik listesi */}
       <div className="flex-1 divide-y divide-slate-100 overflow-y-auto bg-slate-50/40">
-        {priorities.map((item) => {
-          const Icon = item.icon;
+        {loading && (
+          <div className="p-3 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-[64px] rounded-xl border border-slate-200 bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {!loading && hasError && (
+          <div className="h-full min-h-[200px] flex flex-col items-center justify-center gap-2 px-6 text-center">
+            <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center">
+              <AlertCircle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="text-sm font-semibold text-slate-700">Veri alınamadı</div>
+            <p className="text-xs text-slate-400">Bağlantı kontrol edildikten sonra yenileyin.</p>
+            <button
+              type="button"
+              onClick={() => loadPriorities()}
+              className="mt-1 text-xs font-semibold text-indigo-500 hover:text-indigo-700 underline underline-offset-2"
+            >
+              Tekrar dene
+            </button>
+          </div>
+        )}
+
+        {!loading && !hasError && priorities.length === 0 && (
+          <div className="h-full min-h-[200px] flex flex-col items-center justify-center gap-2 px-6 text-center">
+            <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div className="text-sm font-semibold text-slate-700">Herşey yolunda</div>
+            <p className="text-xs text-slate-400">Bugün için aktif öncelik bulunmuyor.</p>
+          </div>
+        )}
+
+        {!loading && !hasError && priorities.map((item, idx) => {
+          const s = getPriorityStyle(item.priority ?? item.oncelik);
+          const Icon = s.icon;
           return (
             <div
-              key={item.id}
-              className="relative flex items-center gap-3 px-4 py-3 hover:bg-white transition-colors duration-150"
+              key={item.id ?? idx}
+              className="relative flex items-center gap-3 px-4 py-3.5 hover:bg-white transition-colors duration-150"
             >
               <span
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full"
-                style={{ backgroundColor: item.accent }}
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-9 rounded-r-full"
+                style={{ backgroundColor: s.accent }}
               />
-              <div className={`h-8 w-8 shrink-0 rounded-xl flex items-center justify-center ${item.accentBg} border ${item.accentBorder}`}>
-                <Icon className={`h-3.5 w-3.5 ${item.accentText}`} />
+              <div className={`h-9 w-9 shrink-0 rounded-2xl flex items-center justify-center ${s.accentBg} border ${s.accentBorder}`}>
+                <Icon className={`h-4 w-4 ${s.accentText}`} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${item.badgeCls}`}>
-                    {item.badge}
+                <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                  <div className="text-[13px] font-semibold text-slate-800 leading-tight truncate">
+                    {item.title ?? item.baslik ?? "Öncelik"}
+                  </div>
+                  <span className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${s.badgeCls}`}>
+                    {s.badge}
                   </span>
                 </div>
-                <div className="text-[12px] font-semibold text-slate-800 leading-tight">{item.title}</div>
-                <div className="text-[11px] text-slate-400 truncate">{item.detail}</div>
+                <div className="text-[11px] text-slate-400 truncate">
+                  {item.description ?? item.aciklama ?? item.detail ?? ""}
+                </div>
                 {item.progress !== undefined && (
                   <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${item.progressColor}`}
-                      style={{ width: `${item.progress}%` }}
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${item.progress}%`, backgroundColor: s.accent }}
                     />
                   </div>
                 )}
               </div>
-              {item.action && (
-                <button
-                  type="button"
-                  className={`shrink-0 h-7 px-2.5 rounded-lg text-[11px] font-semibold shadow-sm transition-colors ${item.actionCls}`}
-                >
-                  {item.action}
-                </button>
-              )}
             </div>
           );
         })}
@@ -968,10 +898,10 @@ function DailyPrioritiesWidget() {
 
       {/* Footer */}
       <div className="px-4 py-2 border-t border-slate-100 bg-white flex items-center justify-between">
-        <span className="text-[10px] text-slate-400">4 öncelik takip ediliyor</span>
+        <span className="text-[10px] text-slate-400">{priorities.length} öncelik takip ediliyor</span>
         <span className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500">
           <Zap className="h-2.5 w-2.5" />
-          Her 5 dk güncellenir
+          Gerçek zamanlı
         </span>
       </div>
     </div>
@@ -1011,152 +941,201 @@ const TOP3_STYLES = {
 function TeamLeaderboardWidget() {
   const [showNames, setShowNames] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const scrollRef = useRef(null);
 
   useEffect(() => {
     supervisorApi.getGamification()
-      .then((res) => setLeaderboard(res.data || []))
-      .catch(() => setLeaderboard([]));
+      .then((res) => setLeaderboard(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setLeaderboard([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  const me = leaderboard.find((r) => r.isMe);
-  const maxXp = leaderboard[0]?.points || 1;
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const { scrollLeft, clientWidth } = scrollRef.current;
+      const scrollTo = direction === "left" ? scrollLeft - clientWidth : scrollLeft + clientWidth;
+      scrollRef.current.scrollTo({ left: scrollTo, behavior: "smooth" });
+    }
+  };
 
-  if (leaderboard.length === 0) {
+  if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 text-center text-slate-400 text-sm">
-        Liderlik tablosu verisi yükleniyor...
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="h-11 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
+        <div className="p-4 flex gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex-1 rounded-xl border border-slate-100 bg-slate-50 p-3 flex flex-col items-center gap-2 animate-pulse">
+              <div className="h-5 w-5 rounded-full bg-slate-200" />
+              <div className="h-10 w-10 rounded-2xl bg-slate-200" />
+              <div className="h-2.5 w-14 rounded-full bg-slate-200" />
+              <div className="h-4 w-10 rounded bg-slate-200" />
+              <div className="h-1.5 w-full rounded-full bg-slate-200" />
+              <div className="h-2 w-8 rounded bg-slate-200" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
+  if (leaderboard.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 text-center text-slate-400 text-sm">
+        Ekip sıralaması henüz mevcut değil.
+      </div>
+    );
+  }
+
+  // Alan adı uyumsuzluklarına karşı normalize et
+  const rows = leaderboard.map((r, idx) => ({
+    rank:   r.rank   ?? r.sira         ?? idx + 1,
+    name:   r.name   ?? r.ad_soyad     ?? r.kullanici_adi ?? r.username ?? "Bilinmiyor",
+    points: r.points ?? r.puan         ?? r.xp            ?? r.score    ?? 0,
+    calls:  r.calls  ?? r.cagri_sayisi ?? r.cagrilar      ?? 0,
+    isMe:   r.isMe   ?? r.benim        ?? false,
+  }));
+
+  const me     = rows.find((r) => r.isMe);
+  const maxXp  = rows[0]?.points || 1;
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
       {/* Header */}
-      <div className="px-5 py-3 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-[10px] uppercase tracking-[0.15em] text-slate-400 font-semibold">Ekip Sıralaması</span>
+      <div className="px-5 py-4 bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] flex items-center justify-between border-b border-white/5">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <span className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping" />
+              <span className="relative block h-2 w-2 rounded-full bg-amber-400" />
+            </div>
+            <span className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-black">Sıralama</span>
           </div>
-          <div className="w-px h-3 bg-white/20" />
-          <h3 className="text-[14px] font-bold text-white">Puan Tablosu</h3>
+          <div className="w-px h-4 bg-white/10" />
+          <h3 className="text-15px font-black text-white tracking-tight flex items-center gap-2">
+            Puan Tablosu
+            <span className="px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 text-[9px] font-bold uppercase tracking-wider border border-amber-400/20">Live</span>
+          </h3>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {me && (
-            <div className="flex items-center gap-2 rounded-xl bg-amber-500/15 border border-amber-500/25 px-3 py-1.5">
-              <span className="text-sm">🏅</span>
-              <span className="text-[11px] text-slate-300">Sıran:</span>
-              <span className="text-[13px] font-bold text-amber-300">#{me.rank}</span>
-              <div className="w-px h-3 bg-white/20" />
-              <span className="text-[11px] text-amber-400">{(maxXp - me.points).toLocaleString("tr-TR")} XP kaldı</span>
+            <div className="flex items-center gap-2.5 rounded-full bg-white/5 border border-white/10 pl-1 pr-4 py-1">
+              <div className="h-7 w-7 rounded-full bg-amber-400 flex items-center justify-center text-sm shadow-[0_0_15px_rgba(251,191,36,0.3)]">
+                🏅
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-slate-400 font-bold leading-none mb-1 uppercase tracking-tighter">Senin Sıran</span>
+                <div className="flex items-center gap-1.5 leading-none">
+                  <span className="text-[14px] font-black text-white">#{me.rank}</span>
+                  <div className="w-1 h-1 rounded-full bg-white/20" />
+                  <span className="text-[10px] font-black text-amber-400">{(maxXp - me.points).toLocaleString("tr-TR")} XP KALDI</span>
+                </div>
+              </div>
             </div>
           )}
+          <div className="w-px h-6 bg-white/10 mx-1" />
           <button
             type="button"
             onClick={() => setShowNames((v) => !v)}
-            className="flex items-center gap-1.5 text-[10px] text-slate-400 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 rounded-lg px-2.5 py-1.5 transition-all"
+            className="flex items-center gap-2 text-[11px] font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-4 py-2 transition-all active:scale-95"
           >
-            {showNames ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-            {showNames ? "Gizle" : "Göster"}
+            {showNames ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showNames ? "İsimleri Gizle" : "İsimleri Göster"}
           </button>
         </div>
       </div>
 
-      {/* Yatay kolon — overflow-x for narrow viewports */}
-      <div className="overflow-x-auto">
-        <div className={`grid min-w-[580px]`} style={{ gridTemplateColumns: `repeat(${leaderboard.length}, minmax(0, 1fr))` }}>
-          {leaderboard.map((row) => {
-            const barWidth = Math.round((row.points / maxXp) * 100);
-            const top3 = TOP3_STYLES[row.rank];
+      {/* Yatay Slider Kolu */}
+      <div className="relative group">
+        {/* Nav Buttons */}
+        <button
+          onClick={() => scroll("left")}
+          className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/90 shadow-xl border border-slate-200 flex items-center justify-center text-slate-600 opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:scale-110 active:scale-95"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+        <button
+          onClick={() => scroll("right")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-white/90 shadow-xl border border-slate-200 flex items-center justify-center text-slate-600 opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:scale-110 active:scale-95"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
 
-            const cardBg = row.isMe
-              ? "bg-gradient-to-b from-amber-50 to-amber-50/30"
-              : top3
-                ? top3.cardBg
-                : "bg-white hover:bg-slate-50/60";
-
-            const avatarStyle = row.isMe
-              ? "bg-gradient-to-br from-amber-300 to-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.4)]"
-              : top3
-                ? top3.avatarBg
-                : "bg-slate-100 text-slate-600";
-
-            const barColor = row.isMe
-              ? "bg-gradient-to-r from-amber-400 to-yellow-400"
-              : top3
-                ? top3.barColor
-                : "bg-slate-200";
-
-            const nameColor = row.isMe
-              ? "text-amber-700 font-bold"
-              : top3
-                ? top3.nameColor
-                : "text-slate-600";
-
-            const xpColor = row.isMe
-              ? "text-amber-600"
-              : top3
-                ? top3.xpColor
-                : "text-slate-600";
-
-            const accentLine = row.isMe
-              ? "bg-gradient-to-r from-amber-300 via-amber-400 to-amber-300"
-              : top3
-                ? top3.accentLine
-                : null;
+        <div
+          ref={scrollRef}
+          className="flex overflow-x-auto scrollbar-hide no-scrollbar"
+          style={{ scrollSnapType: "x mandatory", msOverflowStyle: "none", scrollbarWidth: "none" }}
+        >
+          {rows.map((row) => {
+            const barWidth    = Math.round((row.points / maxXp) * 100);
+            const top3        = TOP3_STYLES[row.rank];
+            const isTop3      = !!top3;
+            const cardBg      = row.isMe ? "bg-amber-50/20" : isTop3 ? top3.cardBg : "bg-white";
+            const avatarStyle = row.isMe ? "bg-gradient-to-br from-amber-300 via-amber-400 to-amber-500 text-white shadow-[0_8px_20px_rgba(245,158,11,0.3)]" : isTop3 ? top3.avatarBg : "bg-slate-100 text-slate-600 shadow-sm";
+            const barColor    = row.isMe ? "bg-amber-400" : isTop3 ? top3.barColor : "bg-slate-200";
+            const nameColor   = row.isMe ? "text-amber-900 font-black" : isTop3 ? top3.nameColor : "text-slate-600 font-bold";
+            const xpColor     = row.isMe ? "text-amber-600" : isTop3 ? top3.xpColor : "text-slate-500";
+            const accentLine  = row.isMe ? "bg-amber-400" : isTop3 ? top3.accentLine : null;
 
             return (
               <div
                 key={row.rank}
-                className={`relative flex flex-col items-center gap-2 px-3 py-4 transition-colors border-r last:border-r-0 border-slate-100 ${cardBg}`}
+                className={`relative flex-none w-[calc(100%/7)] min-w-[140px] flex flex-col items-center gap-3 px-4 py-8 transition-all border-r border-slate-100/60 last:border-r-0 ${cardBg} scroll-snap-align-start hover:z-[1] hover:shadow-[0_0_20px_rgba(0,0,0,0.05)]`}
+                style={{ scrollSnapAlign: "start" }}
               >
-                {/* Top accent line */}
-                {accentLine && (
-                  <span className={`absolute top-0 inset-x-0 h-[3px] ${accentLine}`} />
-                )}
+                {accentLine && <span className={`absolute top-0 inset-x-0 h-1 ${accentLine} opacity-80`} />}
 
-                {/* Badge / rank */}
-                <div className="h-6 flex items-center justify-center">
+                <div className="h-8 flex items-center justify-center">
                   {BADGE_EMOJIS[row.rank] ? (
-                    <span className="text-xl leading-none drop-shadow-sm">{BADGE_EMOJIS[row.rank]}</span>
+                    <div className="relative">
+                      <span className="text-2xl drop-shadow-md z-10 relative animate-bounce-slow">
+                        {BADGE_EMOJIS[row.rank]}
+                      </span>
+                      <div className={`absolute inset-0 blur-lg opacity-40 ${barColor}`} />
+                    </div>
                   ) : (
-                    <span className={`text-[12px] font-extrabold tabular-nums ${row.isMe ? "text-amber-500" : "text-slate-400"}`}>
+                    <span className={`text-[12px] font-black tabular-nums tracking-tighter ${row.isMe ? "text-amber-500" : "text-slate-300"}`}>
                       #{row.rank}
                     </span>
                   )}
                 </div>
 
-                {/* Avatar */}
-                <div className={`h-10 w-10 rounded-2xl flex items-center justify-center text-[12px] font-extrabold transition-transform duration-200 hover:scale-105 ${avatarStyle}`}>
-                  {initials(showNames ? row.name : `T${row.rank}`)}
-                </div>
-
-                {/* Name */}
-                <div className="text-center min-w-0 w-full px-1 space-y-0.5">
-                  <div className={`text-[11px] truncate text-center leading-tight ${nameColor}`}>
-                    {showNames ? row.name.split(" ")[0] : `Temsilci ${row.rank}`}
+                <div className="relative">
+                  <div className={`h-14 w-14 rounded-[22px] flex items-center justify-center text-[16px] font-black transition-all duration-300 group-item-hover:scale-110 group-item-hover:-translate-y-1 ${avatarStyle}`}>
+                    {initials(showNames ? row.name : `T${row.rank}`)}
                   </div>
                   {row.isMe && (
-                    <div className="text-[9px] font-bold text-amber-500 uppercase tracking-wide">Sen</div>
+                    <div className="absolute -right-1 -bottom-1 h-5 w-5 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                      <div className="h-1.5 w-1.5 bg-white rounded-full animate-pulse" />
+                    </div>
                   )}
                 </div>
 
-                {/* XP */}
-                <div className={`text-[14px] font-extrabold tabular-nums leading-none ${xpColor}`}>
-                  {(row.points || 0).toLocaleString("tr-TR")}
-                  <span className="text-[9px] font-normal text-slate-400 ml-0.5">XP</span>
+                <div className="text-center min-w-0 w-full space-y-1">
+                  <div className={`text-[12px] truncate leading-tight uppercase tracking-tight ${nameColor}`}>
+                    {showNames ? row.name.split(" ")[0] : `Temsilci ${row.rank}`}
+                  </div>
+                  {row.isMe && <div className="inline-block px-1.5 py-0.5 rounded-md bg-amber-400 text-amber-950 text-[8px] font-black uppercase tracking-widest leading-none">Premium</div>}
                 </div>
 
-                {/* Progress bar */}
-                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor}`}
-                    style={{ width: `${barWidth}%` }}
-                  />
+                <div className="flex flex-col items-center gap-1.5 w-full mt-1">
+                  <div className={`text-[17px] font-black tabular-nums leading-none tracking-tighter ${xpColor}`}>
+                    {row.points.toLocaleString("tr-TR")}
+                    <span className="text-[10px] font-bold text-slate-300 ml-1">XP</span>
+                  </div>
+
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden p-[1px]">
+                    <div
+                      className={`h-full rounded-full transition-all duration-1000 ease-out shadow-sm ${barColor}`}
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
                 </div>
 
-                {/* Calls */}
-                <div className="text-[10px] text-slate-400 tabular-nums font-medium">{row.calls} çağrı</div>
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-100">
+                  <Phone className="h-2.5 w-2.5 text-slate-400" />
+                  <span className="text-[11px] text-slate-500 tabular-nums font-black">{row.calls}</span>
+                </div>
               </div>
             );
           })}
@@ -1164,12 +1143,29 @@ function TeamLeaderboardWidget() {
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-2 border-t border-slate-100 bg-white flex items-center justify-between">
-        <span className="text-[10px] text-slate-400">{leaderboard.length} temsilci sıralanıyor</span>
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-amber-500">
-          <Trophy className="h-2.5 w-2.5" />
-          Gece sıfırlanır
-        </span>
+      <div className="px-6 py-3 border-t border-slate-50 bg-[#fafafa] flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex -space-x-2">
+            {rows.slice(0, 3).map((r, i) => (
+              <div key={i} className="h-5 w-5 rounded-full border border-white bg-slate-200 flex items-center justify-center text-[7px] font-bold">
+                {initials(r.name)}
+              </div>
+            ))}
+          </div>
+          <span className="text-[11px] font-bold text-slate-400">
+            <span className="text-slate-600">{rows.length}</span> Temsilci Aktif
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1 h-1 rounded-full bg-slate-300" />
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Global Rank</span>
+          </div>
+          <div className="px-3 py-1 rounded-full bg-amber-400/10 border border-amber-400/20 flex items-center gap-1.5">
+            <Trophy className="h-3 w-3 text-amber-500" />
+            <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Gece Sıfırlanır</span>
+          </div>
+        </div>
       </div>
     </div>
   );

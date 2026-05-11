@@ -25,7 +25,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -102,7 +102,8 @@ class EndBreakBody(BaseModel):
 class ManualXpBody(BaseModel):
     user_id: str
     delta:   int
-    sebep:   str
+    # Sprint 7-C: manuel XP müdahaleleri için "Neden" zorunlu (min 3 karakter, max 256)
+    sebep:   str = Field(..., min_length=3, max_length=256)
     referans_id: Optional[str] = None
 
 

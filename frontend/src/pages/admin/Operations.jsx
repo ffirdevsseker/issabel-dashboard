@@ -1197,43 +1197,69 @@ export default function Operations() {
         paddingBottom: 14, borderBottom: "1px solid rgba(0,0,0,0.06)",
         gap: 12, flexWrap: "wrap", marginBottom: 14,
       }}>
-        <div>
-          <h1 style={{
-            margin: 0, fontSize: 22, fontWeight: 800,
-            color: "#0f172a", letterSpacing: "-0.025em",
-            display: "flex", alignItems: "center", gap: 10,
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: "linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(239,68,68,0.28) 100%)",
+            border: "1px solid rgba(239,68,68,0.32)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 10px rgba(239,68,68,0.18)",
+            flexShrink: 0,
           }}>
             <Radio
               size={20} color="#ef4444"
+              strokeWidth={2.4}
               style={{ animation: "liveGlow 2s ease-in-out infinite" }}
             />
-            Canlı Operasyon
-          </h1>
-          <p style={{ margin: "2px 0 0", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>
-            {loading ? "Yükleniyor…" : (
-              `${calls.length} aktif görüşme · ${totalQueued} kuyrukta bekleyen · ${onlineCount} çevrimiçi personel`
-            )}
-          </p>
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h1 style={{
+                margin: 0, fontSize: 20, fontWeight: 800,
+                color: "#0f172a", letterSpacing: "-0.02em",
+              }}>
+                Canlı Operasyon
+              </h1>
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "2px 8px", borderRadius: 99,
+                background: "rgba(16,185,129,0.1)",
+                border: "1px solid rgba(16,185,129,0.28)",
+                fontSize: 9.5, fontWeight: 800,
+                color: "#10b981", letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: "#10b981",
+                  animation: "livePulse 1.5s ease-in-out infinite",
+                }} />
+                Canlı
+              </span>
+            </div>
+            <p style={{ margin: "3px 0 0", fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>
+              {loading ? "Yükleniyor…" : (
+                `${calls.length} aktif görüşme · ${totalQueued} kuyrukta bekleyen · ${onlineCount} çevrimiçi personel`
+              )}
+            </p>
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{
             display: "flex", alignItems: "center", gap: 7,
-            padding: "5px 12px",
-            background: "rgba(16,185,129,0.07)",
-            border: "1.5px solid rgba(16,185,129,0.3)",
-            borderRadius: 8,
+            padding: "6px 12px",
+            background: "linear-gradient(135deg, #fff 0%, rgba(16,185,129,0.06) 100%)",
+            border: "1px solid rgba(16,185,129,0.25)",
+            borderRadius: 10,
+            boxShadow: "0 1px 4px rgba(16,185,129,0.08)",
           }}>
+            <Activity size={12} color="#10b981" strokeWidth={2.6} />
             <span style={{
-              width: 8, height: 8, borderRadius: "50%",
-              background: "#10b981", display: "inline-block",
-              animation: "livePulse 1.5s ease-in-out infinite",
-            }} />
-            <span style={{
-              fontSize: 11.5, fontWeight: 700, color: "#10b981",
+              fontSize: 12, fontWeight: 800, color: "#10b981",
               letterSpacing: "0.04em", fontVariantNumeric: "tabular-nums",
             }}>
-              CANLI · {clockStr}
+              {clockStr}
             </span>
           </div>
 
@@ -1243,15 +1269,26 @@ export default function Operations() {
             style={{
               display: "flex", alignItems: "center", gap: 6,
               background: "#ffffff", border: "1px solid rgba(0,0,0,0.1)",
-              borderRadius: 8, padding: "6px 14px",
-              fontSize: 12, fontWeight: 600, color: "#475569",
+              borderRadius: 10, padding: "8px 16px",
+              fontSize: 12, fontWeight: 700, color: "#0f172a",
               cursor: refreshing ? "not-allowed" : "pointer",
               opacity: refreshing ? 0.6 : 1,
-              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => {
+              if (!refreshing) {
+                e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)";
+                e.currentTarget.style.color = "#ef4444";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)";
+              e.currentTarget.style.color = "#0f172a";
             }}
           >
             <RefreshCw
-              size={12}
+              size={13}
               style={{ animation: refreshing ? "spin 0.7s linear infinite" : "none" }}
             />
             Yenile

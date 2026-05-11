@@ -11,7 +11,10 @@ Geriye uyumluluk: from app.api.admin import router  hâlâ çalışır.
 """
 from fastapi import APIRouter
 
-from app.api.admin import core, personnel, operations, header, overview, warroom, rules, system_health
+from app.api.admin import (
+    core, personnel, operations, header, overview, warroom, rules,
+    system_health, gamification,
+)
 
 router = APIRouter()
 router.include_router(core.router)
@@ -22,5 +25,6 @@ router.include_router(overview.router)
 router.include_router(warroom.router)
 router.include_router(rules.router)          # /admin/rules/*
 router.include_router(system_health.router)  # /admin/system/*
+router.include_router(gamification.router)   # /admin/gamification/*
 
 __all__ = ["router"]

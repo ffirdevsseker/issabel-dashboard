@@ -161,6 +161,10 @@ export const rulesApi = {
   update:  (id, data)    => api.put(`/admin/rules/${id}`, data),
   toggle:  (id, data)    => api.patch(`/admin/rules/${id}/toggle`, data),
   delete:  (id)          => api.delete(`/admin/rules/${id}`),
+
+  // Sprint 7-C — Kural tetiklenme geçmişi (kural_tetiklenmeleri tablosu)
+  getRecentHistory: (limit = 50)        => api.get("/admin/rules/history", { params: { limit } }),
+  getHistory:       (id, limit = 20)    => api.get(`/admin/rules/${id}/history`, { params: { limit } }),
 };
 
 /* ─── Admin · Sistem Sağlığı & AI İçgörüler ──────────────────────────────────
@@ -169,11 +173,10 @@ export const systemHealthApi = {
   getInsights: (signal) => api.get("/admin/system/ai-insights", { signal }),
 };
 
-/* ─── Admin · Şikayet Yönetimi + Gamification ────────────────────────────────
+/* ─── Admin · Şikayet Yönetimi ────────────────────────────────────────────────
    Backend kaynakları:
      · /approvals/complaints                (approvals.py — list_complaints)
-     · /approvals/complaints/{id}/decide    (karar query param: "onayla"|"reddet")
-     · /gamification/leaderboard            (gamification.py)                  */
+     · /approvals/complaints/{id}/decide    (karar query param: "onayla"|"reddet") */
 export const adminOpsApi = {
   // params: { durum?: "olusturuldu" | "supervisor_inceleme" | "onaylandi" | "reddedildi" }
   getComplaints: (params) => api.get("/approvals/complaints", { params }),
@@ -184,7 +187,29 @@ export const adminOpsApi = {
       params: { karar, gerekce },
     }),
 
+  // Geriye uyumluluk — yeni kodda gamificationApi.getLeaderboard tercih edilmeli
   getLeaderboard: () => api.get("/gamification/leaderboard"),
+};
+
+/* ─── Admin · Gamification Merkezi ────────────────────────────────────────────
+   Backend prefix: /admin/gamification (admin/gamification.py)                    */
+export const gamificationApi = {
+  // Leaderboard (genel — supervisor da kullanır)
+  getLeaderboard: () => api.get("/gamification/leaderboard"),
+
+  // Özet kartlar: toplam_personel, toplam_xp, bu_ay_xp, bu_ay_lider
+  getStats:       () => api.get("/admin/gamification/stats"),
+
+  // XP hareket logları
+  // params: { personel_id?, kategori?, from_date?, to_date?, page?, limit? }
+  getXpLogs:      (params) => api.get("/admin/gamification/xp-logs", { params }),
+
+  // XP Kuralları CRUD
+  getXpRules:     ()           => api.get("/admin/gamification/xp-rules"),
+  createXpRule:   (body)       => api.post("/admin/gamification/xp-rules", body),
+  updateXpRule:   (id, body)   => api.put(`/admin/gamification/xp-rules/${id}`, body),
+  toggleXpRule:   (id, aktif)  => api.patch(`/admin/gamification/xp-rules/${id}/toggle`, { aktif }),
+  deleteXpRule:   (id)         => api.delete(`/admin/gamification/xp-rules/${id}`),
 };
 
 export default api;

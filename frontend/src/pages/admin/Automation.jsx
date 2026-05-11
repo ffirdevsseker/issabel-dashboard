@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Edit2,
+  History,
   Plus,
   RefreshCw,
   Settings2,
@@ -17,6 +18,10 @@ import {
   ToggleRight,
   Trash2,
   X,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Inbox,
 } from "lucide-react";
 
 import { rulesApi }  from "@/services/api";
@@ -131,6 +136,14 @@ export default function AutomationPage() {
   const [deleting, setDeleting] = useState(null);
   const [error,    setError]    = useState(null);
 
+  // Sprint 7-C · Tetiklenme geçmişi
+  const [historyModal,   setHistoryModal]   = useState(null);  // null | { rule }
+  const [historyRows,    setHistoryRows]    = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [recentHist,     setRecentHist]     = useState([]);
+  const [recentLoading,  setRecentLoading]  = useState(true);
+
   /* fetch ────────────────────────────────────────────────────────────────── */
   const fetchRules = useCallback(async () => {
     setLoading(true);
@@ -147,6 +160,45 @@ export default function AutomationPage() {
   }, []);
 
   useEffect(() => { fetchRules(); }, [fetchRules]);
+
+  /* Tetiklenme geçmişi ────────────────────────────────────────────────────── */
+  const fetchRecentHistory = useCallback(async () => {
+    setRecentLoading(true);
+    try {
+      const r = await rulesApi.getRecentHistory(20);
+      setRecentHist(Array.isArray(r.data) ? r.data : []);
+    } catch {
+      setRecentHist([]);
+    } finally {
+      setRecentLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRecentHistory(); }, [fetchRecentHistory]);
+
+  async function openHistory(rule) {
+    setHistoryModal({ rule });
+    setHistoryLoading(true);
+    setHistoryRows([]);
+    try {
+      const r = await rulesApi.getHistory(rule.id, 50);
+      setHistoryRows(Array.isArray(r.data) ? r.data : []);
+    } catch {
+      setHistoryRows([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function fmtTime(iso) {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString("tr-TR", {
+        day: "2-digit", month: "short",
+        hour: "2-digit", minute: "2-digit",
+      });
+    } catch { return "—"; }
+  }
 
   /* modal helpers ─────────────────────────────────────────────────────────── */
   function openCreate() {
@@ -338,7 +390,7 @@ export default function AutomationPage() {
             {/* header */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "minmax(160px,2fr) minmax(160px,2fr) minmax(160px,2fr) 80px 90px 76px",
+              gridTemplateColumns: "minmax(160px,2fr) minmax(160px,2fr) minmax(160px,2fr) 80px 90px 112px",
               gap: 8, padding: "6px 12px 8px",
               borderBottom: "1px solid rgba(0,0,0,0.07)",
             }}>
@@ -358,7 +410,7 @@ export default function AutomationPage() {
                 key={rule.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(160px,2fr) minmax(160px,2fr) minmax(160px,2fr) 80px 90px 76px",
+                  gridTemplateColumns: "minmax(160px,2fr) minmax(160px,2fr) minmax(160px,2fr) 80px 90px 112px",
                   gap: 8, padding: "11px 12px",
                   borderBottom: "1px solid rgba(0,0,0,0.045)",
                   alignItems: "center",
@@ -405,6 +457,19 @@ export default function AutomationPage() {
                 {/* Aksiyonlar */}
                 <div style={{ display: "flex", gap: 4 }}>
                   <button
+                    onClick={() => openHistory(rule)}
+                    title="Tetiklenme Geçmişi"
+                    style={{
+                      padding: "5px 8px",
+                      border: "1px solid rgba(139,92,246,0.18)",
+                      borderRadius: 6,
+                      background: "rgba(139,92,246,0.06)",
+                      cursor: "pointer", display: "flex", alignItems: "center",
+                    }}
+                  >
+                    <History size={12} color="#8b5cf6" />
+                  </button>
+                  <button
                     onClick={() => openEdit(rule)}
                     title="Düzenle"
                     style={{
@@ -438,6 +503,262 @@ export default function AutomationPage() {
           </div>
         )}
       </Panel>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          SON TETİKLENMELER  —  /admin/rules/history
+      ════════════════════════════════════════════════════════════════════ */}
+      <div style={{ marginTop: 16 }}>
+        <Panel
+          title="Son Tetiklenmeler — Tüm Kurallar"
+          accentColor="#8b5cf6"
+          badge={!recentLoading && recentHist.length > 0 ? recentHist.length : null}
+          action={
+            <button
+              onClick={fetchRecentHistory}
+              disabled={recentLoading}
+              title="Yenile"
+              style={{
+                padding: "4px 8px", borderRadius: 6,
+                background: "rgba(139,92,246,0.08)",
+                border: "1px solid rgba(139,92,246,0.2)",
+                cursor: recentLoading ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center",
+                opacity: recentLoading ? 0.5 : 1,
+              }}
+            >
+              <RefreshCw size={11} color="#8b5cf6" style={{
+                animation: recentLoading ? "rulesSpin 0.8s linear infinite" : "none",
+              }} />
+            </button>
+          }
+          noPad
+        >
+          <style>{`@keyframes rulesSpin{to{transform:rotate(360deg);}}`}</style>
+          {recentLoading ? (
+            <div style={{ padding: 16 }}>
+              <Shimmer />
+            </div>
+          ) : recentHist.length === 0 ? (
+            <div style={{
+              padding: "40px 0", textAlign: "center",
+              color: "#94a3b8", fontSize: 13,
+              display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 10,
+            }}>
+              <Inbox size={28} color="#e2e8f0" />
+              <div>Henüz tetiklenme kaydı yok.</div>
+              <div style={{ fontSize: 11, color: "#cbd5e1" }}>
+                Scheduler bir kural çalıştırdığında burada görünecek.
+              </div>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: 360, overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    {["Zaman", "Kural", "Anlık Değer", "Aksiyon Özeti", "Etkilenen", "Sonuç"].map(h => (
+                      <th key={h} style={{
+                        padding: "10px 16px", textAlign: "left",
+                        color: "#94a3b8", fontWeight: 700, fontSize: 10,
+                        letterSpacing: "0.08em", textTransform: "uppercase",
+                        borderBottom: "1px solid rgba(0,0,0,0.07)",
+                        background: "#f8fafc", whiteSpace: "nowrap",
+                        position: "sticky", top: 0,
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentHist.map((h) => (
+                    <tr key={h.id}
+                      style={{ borderBottom: "1px solid rgba(0,0,0,0.045)" }}
+                    >
+                      <td style={{ padding: "9px 16px", color: "#64748b", whiteSpace: "nowrap", fontSize: 11 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <Clock size={11} color="#cbd5e1" />
+                          {fmtTime(h.tetiklenme_zamani)}
+                        </span>
+                      </td>
+                      <td style={{ padding: "9px 16px", color: "#0f172a", fontWeight: 600, fontSize: 12 }}>
+                        {h.kural_ad ?? <span style={{ color: "#94a3b8", fontStyle: "italic" }}>silindi</span>}
+                      </td>
+                      <td style={{
+                        padding: "9px 16px", color: "#0f172a", fontWeight: 700,
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        {h.kosul_anlik_deger != null ? h.kosul_anlik_deger : "—"}
+                      </td>
+                      <td style={{
+                        padding: "9px 16px", color: "#475569", fontSize: 11.5,
+                        maxWidth: 360, overflow: "hidden",
+                        textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }} title={h.aksiyon_ozeti}>
+                        {h.aksiyon_ozeti || "—"}
+                      </td>
+                      <td style={{
+                        padding: "9px 16px", color: "#0f172a", fontWeight: 700,
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        {h.etkilenen_sayi > 0
+                          ? <span style={{ color: "#10b981" }}>{h.etkilenen_sayi}</span>
+                          : <span style={{ color: "#94a3b8" }}>0</span>}
+                      </td>
+                      <td style={{ padding: "9px 16px" }}>
+                        {h.basarili ? (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                            fontSize: 10, fontWeight: 800,
+                            color: "#10b981", background: "rgba(16,185,129,0.1)",
+                            border: "1px solid rgba(16,185,129,0.22)",
+                            borderRadius: 99, padding: "2px 8px",
+                          }}>
+                            <CheckCircle2 size={10} /> Başarılı
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: "inline-flex", alignItems: "center", gap: 4,
+                            fontSize: 10, fontWeight: 800,
+                            color: "#ef4444", background: "rgba(239,68,68,0.1)",
+                            border: "1px solid rgba(239,68,68,0.22)",
+                            borderRadius: 99, padding: "2px 8px",
+                          }}>
+                            <AlertTriangle size={10} /> Hata
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════
+          HISTORY MODAL  —  tek kural detayı
+      ════════════════════════════════════════════════════════════════════ */}
+      {historyModal && (
+        <div
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(15,23,42,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 1000, padding: 20,
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setHistoryModal(null); }}
+        >
+          <div style={{
+            background: "#fff", borderRadius: 16,
+            width: "100%", maxWidth: 720,
+            maxHeight: "85vh",
+            display: "flex", flexDirection: "column",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.18)",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              display: "flex", alignItems: "center",
+              justifyContent: "space-between",
+              padding: "16px 22px",
+              borderBottom: "1px solid rgba(0,0,0,0.07)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 10,
+                  background: "rgba(139,92,246,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <History size={15} color="#8b5cf6" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                    Tetiklenme Geçmişi
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                    {historyModal.rule.ad}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setHistoryModal(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
+              >
+                <X size={18} color="#94a3b8" />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {historyLoading ? (
+                <div style={{ padding: 16 }}><Shimmer /></div>
+              ) : historyRows.length === 0 ? (
+                <div style={{
+                  padding: "60px 0", textAlign: "center",
+                  color: "#94a3b8", fontSize: 13,
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", gap: 10,
+                }}>
+                  <Inbox size={28} color="#e2e8f0" />
+                  <div>Bu kural için henüz tetiklenme kaydı yok.</div>
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {["Zaman", "Anlık Değer", "Aksiyon Özeti", "Etkilenen", "Sonuç"].map(h => (
+                        <th key={h} style={{
+                          padding: "10px 16px", textAlign: "left",
+                          color: "#94a3b8", fontWeight: 700, fontSize: 10,
+                          letterSpacing: "0.08em", textTransform: "uppercase",
+                          borderBottom: "1px solid rgba(0,0,0,0.07)",
+                          background: "#f8fafc", whiteSpace: "nowrap",
+                          position: "sticky", top: 0,
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyRows.map(h => (
+                      <tr key={h.id} style={{ borderBottom: "1px solid rgba(0,0,0,0.045)" }}>
+                        <td style={{ padding: "9px 16px", color: "#64748b", whiteSpace: "nowrap", fontSize: 11 }}>
+                          {fmtTime(h.tetiklenme_zamani)}
+                        </td>
+                        <td style={{ padding: "9px 16px", color: "#0f172a", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                          {h.kosul_anlik_deger != null ? h.kosul_anlik_deger : "—"}
+                        </td>
+                        <td style={{ padding: "9px 16px", color: "#475569", fontSize: 11.5 }}>
+                          {h.aksiyon_ozeti || "—"}
+                        </td>
+                        <td style={{ padding: "9px 16px", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                          {h.etkilenen_sayi > 0
+                            ? <span style={{ color: "#10b981" }}>{h.etkilenen_sayi}</span>
+                            : <span style={{ color: "#94a3b8" }}>0</span>}
+                        </td>
+                        <td style={{ padding: "9px 16px" }}>
+                          {h.basarili ? (
+                            <span style={{
+                              fontSize: 10, fontWeight: 800, color: "#10b981",
+                              background: "rgba(16,185,129,0.1)",
+                              border: "1px solid rgba(16,185,129,0.22)",
+                              borderRadius: 99, padding: "2px 8px",
+                            }}>✓ Başarılı</span>
+                          ) : (
+                            <span style={{
+                              fontSize: 10, fontWeight: 800, color: "#ef4444",
+                              background: "rgba(239,68,68,0.1)",
+                              border: "1px solid rgba(239,68,68,0.22)",
+                              borderRadius: 99, padding: "2px 8px",
+                            }}>✗ Hata</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════
           MODAL — Yeni Kural / Düzenle

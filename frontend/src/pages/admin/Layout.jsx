@@ -38,7 +38,6 @@ const ADMIN_NAV = [
   { label: "Gamification",         to: "/admin/gamification",  icon: Trophy          },
   { label: "Otomasyon & Kurallar", to: "/admin/automation",    icon: Settings2       },
   { label: "Sistem Sağlığı",       to: "/admin/system-health", icon: BrainCircuit    },
-  { label: "Raporlar",             to: "/admin/reports",       icon: BarChart3       },
 ];
 
 // Sağlık renkleri

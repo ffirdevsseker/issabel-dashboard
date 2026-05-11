@@ -45,6 +45,24 @@ _CREATE = text("""
     )
 """)
 
+# Kural tetiklenme logu — scheduler/worker bu tabloya yazacak (henüz yazıcı yok)
+_CREATE_HISTORY = text("""
+    CREATE TABLE IF NOT EXISTS kural_tetiklenmeleri (
+        id               UUID         PRIMARY KEY,
+        kural_id         UUID         NOT NULL REFERENCES otomasyon_kurallari(id) ON DELETE CASCADE,
+        tetiklenme_zamani TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        kosul_anlik_deger NUMERIC,
+        aksiyon_ozeti    VARCHAR(512) NOT NULL DEFAULT '',
+        etkilenen_sayi   INTEGER      NOT NULL DEFAULT 0,
+        basarili         BOOLEAN      NOT NULL DEFAULT TRUE,
+        detay            JSONB
+    )
+""")
+_CREATE_HIST_IDX = text("""
+    CREATE INDEX IF NOT EXISTS ix_kural_tetik_zaman
+        ON kural_tetiklenmeleri (kural_id, tetiklenme_zamani DESC)
+""")
+
 # DDL her process'te yalnızca bir kez çalışır
 _TABLE_READY: bool = False
 
@@ -54,6 +72,8 @@ async def _ensure(db: AsyncSession) -> None:
     if _TABLE_READY:
         return
     await db.execute(_CREATE)
+    await db.execute(_CREATE_HISTORY)
+    await db.execute(_CREATE_HIST_IDX)
     await db.commit()
     _TABLE_READY = True
 
@@ -192,3 +212,68 @@ async def delete_rule(
     if not res.fetchone():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Kural bulunamadı")
     await db.commit()
+
+
+# ─── Tetiklenme Geçmişi ──────────────────────────────────────────────────────
+# Not: kural_tetiklenmeleri tablosu kurulu; gerçek scheduler/worker bu tabloya
+# yazdığında geçmiş otomatik dolar. Şu an boş ise UI "henüz tetiklenme yok" gösterir.
+
+def _hist_dict(r) -> dict:
+    return {
+        "id":                str(r.id),
+        "kural_id":          str(r.kural_id),
+        "kural_ad":          getattr(r, "kural_ad", None),
+        "tetiklenme_zamani": r.tetiklenme_zamani.isoformat() if r.tetiklenme_zamani else None,
+        "kosul_anlik_deger": float(r.kosul_anlik_deger) if r.kosul_anlik_deger is not None else None,
+        "aksiyon_ozeti":     r.aksiyon_ozeti or "",
+        "etkilenen_sayi":    int(r.etkilenen_sayi or 0),
+        "basarili":          bool(r.basarili),
+    }
+
+
+@router.get("/history")
+async def list_recent_history(
+    limit: int = 50,
+    db:    AsyncSession = Depends(get_async_db),
+    _:     User         = Depends(ADMIN),
+):
+    """Son tetiklenmeler (tüm kurallar, en yeniden eskiye)."""
+    await _ensure(db)
+    limit = max(1, min(limit, 200))
+    rows = (await db.execute(text("""
+        SELECT
+            kt.id, kt.kural_id, kt.tetiklenme_zamani,
+            kt.kosul_anlik_deger, kt.aksiyon_ozeti,
+            kt.etkilenen_sayi, kt.basarili,
+            ok.ad AS kural_ad
+        FROM kural_tetiklenmeleri kt
+        LEFT JOIN otomasyon_kurallari ok ON ok.id = kt.kural_id
+        ORDER BY kt.tetiklenme_zamani DESC
+        LIMIT :lim
+    """), {"lim": limit})).fetchall()
+    return [_hist_dict(r) for r in rows]
+
+
+@router.get("/{rule_id}/history")
+async def list_rule_history(
+    rule_id: str,
+    limit:   int = 20,
+    db:      AsyncSession = Depends(get_async_db),
+    _:       User         = Depends(ADMIN),
+):
+    """Tek bir kurala ait tetiklenme geçmişi."""
+    await _ensure(db)
+    limit = max(1, min(limit, 100))
+    rows = (await db.execute(text("""
+        SELECT
+            kt.id, kt.kural_id, kt.tetiklenme_zamani,
+            kt.kosul_anlik_deger, kt.aksiyon_ozeti,
+            kt.etkilenen_sayi, kt.basarili,
+            ok.ad AS kural_ad
+        FROM kural_tetiklenmeleri kt
+        LEFT JOIN otomasyon_kurallari ok ON ok.id = kt.kural_id
+        WHERE kt.kural_id = CAST(:rid AS uuid)
+        ORDER BY kt.tetiklenme_zamani DESC
+        LIMIT :lim
+    """), {"rid": rule_id, "lim": limit})).fetchall()
+    return [_hist_dict(r) for r in rows]

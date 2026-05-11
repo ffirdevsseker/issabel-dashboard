@@ -21,6 +21,8 @@ import OperationsPage    from "@/pages/admin/Operations";
 import AdminReports     from "@/pages/admin/Reports";
 import AutomationPage   from "@/pages/admin/Automation";
 import SystemHealthPage from "@/pages/admin/SystemHealth";
+import ComplaintsPage           from "@/pages/admin/Complaints";
+import GamificationOverviewPage from "@/pages/admin/GamificationOverview";
 
 
 import SupervisorLayout from "@/pages/supervisor/Layout";
@@ -92,6 +94,8 @@ export default function App() {
             <Route path="personnel"     element={<PersonnelPage />} />
             <Route path="personnel/:id" element={<PersonnelDetailPage />} />
             <Route path="operations"    element={<OperationsPage />} />
+            <Route path="complaints"    element={<ComplaintsPage />} />
+            <Route path="gamification"  element={<GamificationOverviewPage />} />
             <Route path="reports"       element={<AdminReports />} />
             <Route path="automation"    element={<AutomationPage />} />
             <Route path="system-health" element={<SystemHealthPage />} />

@@ -22,6 +22,10 @@ import {
   Server,
   Zap,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 import { systemHealthApi } from "@/services/api";
 import { Panel }           from "@/pages/admin/Overview";
@@ -107,79 +111,137 @@ function RiskRow({ risk }) {
   );
 }
 
-/* ─── Mini bar chart (div-tabanlı) ──────────────────────────────────────── */
+/* ─── Tooltip ────────────────────────────────────────────────────────────── */
+function HourlyTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const ort   = payload.find(p => p.dataKey === "ort")?.value   ?? 0;
+  const bugun = payload.find(p => p.dataKey === "bugun")?.value ?? 0;
+  const fark  = bugun - ort;
+  const farkPct = ort > 0 ? Math.round((fark / ort) * 100) : null;
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid rgba(0,0,0,0.08)",
+      borderRadius: 10, padding: "10px 12px", minWidth: 160,
+      boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
+    }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#0f172a", marginBottom: 6, letterSpacing: "0.04em" }}>
+        SAAT {label}:00
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12, marginBottom: 3 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#64748b" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: "#cbd5e1" }} />
+          7 Gün Ort.
+        </span>
+        <strong style={{ color: "#475569", fontVariantNumeric: "tabular-nums" }}>{ort.toFixed(1)}</strong>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, fontSize: 12 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, color: "#64748b" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 2, background: "#3b82f6" }} />
+          Bugün
+        </span>
+        <strong style={{ color: "#1d4ed8", fontVariantNumeric: "tabular-nums" }}>{bugun}</strong>
+      </div>
+      {farkPct !== null && (
+        <div style={{
+          marginTop: 6, paddingTop: 6, borderTop: "1px dashed rgba(0,0,0,0.08)",
+          fontSize: 10.5, color: fark >= 0 ? "#059669" : "#dc2626",
+          fontWeight: 700,
+        }}>
+          {fark >= 0 ? "▲" : "▼"} ort. {fark >= 0 ? "+" : ""}{farkPct}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Saatlik trend grafiği (recharts) ───────────────────────────────────── */
 function HourlyChart({ ortalama, bugun }) {
-  // Tüm saatleri 0-23 oluştur
-  const ortMap   = Object.fromEntries((ortalama  || []).map(r => [r.saat, r.ort]));
-  const bugunMap = Object.fromEntries((bugun     || []).map(r => [r.saat, r.cagri]));
+  const ortMap   = Object.fromEntries((ortalama || []).map(r => [r.saat, r.ort]));
+  const bugunMap = Object.fromEntries((bugun    || []).map(r => [r.saat, r.cagri]));
 
-  const allHours = Array.from({ length: 24 }, (_, i) => i)
-    .filter(h => (ortMap[h] ?? 0) > 0 || (bugunMap[h] ?? 0) > 0);
+  const hasData = Object.values(ortMap).some(v => v > 0)
+               || Object.values(bugunMap).some(v => v > 0);
 
-  if (allHours.length === 0) {
+  if (!hasData) {
     return (
-      <div style={{ padding: "24px 0", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
-        Bugün henüz yeterli veri yok
+      <div style={{
+        padding: "48px 0", textAlign: "center",
+        color: "#94a3b8", fontSize: 13,
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+      }}>
+        <Activity size={26} color="#e2e8f0" />
+        Henüz yeterli saatlik veri yok.
       </div>
     );
   }
 
-  const maxVal = Math.max(
-    ...allHours.map(h => Math.max(ortMap[h] ?? 0, bugunMap[h] ?? 0)),
-    1
-  );
+  // 0-23 saat sabit eksen
+  const rows = Array.from({ length: 24 }, (_, h) => ({
+    saat:  String(h).padStart(2, "0"),
+    ort:   Math.round((ortMap[h] ?? 0) * 10) / 10,
+    bugun: bugunMap[h] ?? 0,
+  }));
 
   return (
-    <div>
-      {/* Gösterge */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-        {[
-          { color: "#cbd5e1", label: "7 Günlük Ort." },
-          { color: "#3b82f6", label: "Bugün" },
-        ].map(l => (
-          <div key={l.label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />
-            <span style={{ fontSize: 11, color: "#64748b" }}>{l.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Bar'lar */}
-      <div style={{
-        display: "flex", alignItems: "flex-end",
-        gap: 4, height: 80, overflowX: "auto",
-        paddingBottom: 20, position: "relative",
-      }}>
-        {allHours.map(h => {
-          const ort   = ortMap[h]   ?? 0;
-          const bg    = bugunMap[h] ?? 0;
-          const oPct  = (ort / maxVal) * 100;
-          const bPct  = (bg  / maxVal) * 100;
-          return (
-            <div key={h} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", width: 22 }}>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 64 }}>
-                {/* ort bar */}
-                <div style={{
-                  width: 8, borderRadius: "3px 3px 0 0",
-                  height: `${Math.max(oPct, 2)}%`,
-                  background: "#cbd5e1",
-                  transition: "height 0.3s",
-                }} title={`Ort: ${ort.toFixed(1)}`} />
-                {/* bugün bar */}
-                <div style={{
-                  width: 8, borderRadius: "3px 3px 0 0",
-                  height: `${Math.max(bPct, 2)}%`,
-                  background: "#3b82f6",
-                  transition: "height 0.3s",
-                }} title={`Bugün: ${bg}`} />
-              </div>
-              <span style={{ fontSize: 8, color: "#94a3b8", marginTop: 4 }}>
-                {String(h).padStart(2, "0")}
+    <div style={{ width: "100%", height: 240, marginTop: 4 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} margin={{ top: 8, right: 4, left: -18, bottom: 0 }} barGap={3}>
+          <defs>
+            <linearGradient id="hh-bugun" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#3b82f6" stopOpacity={1}    />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.75} />
+            </linearGradient>
+            <linearGradient id="hh-ort" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#cbd5e1" stopOpacity={1}    />
+              <stop offset="100%" stopColor="#cbd5e1" stopOpacity={0.7}  />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+          <XAxis
+            dataKey="saat"
+            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            interval={1}
+          />
+          <YAxis
+            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            allowDecimals={false}
+            width={40}
+          />
+          <Tooltip
+            content={<HourlyTooltip />}
+            cursor={{ fill: "rgba(99,102,241,0.06)" }}
+          />
+          <Legend
+            verticalAlign="top"
+            height={28}
+            iconType="circle"
+            iconSize={8}
+            formatter={(val) => (
+              <span style={{ fontSize: 11, color: "#64748b", marginRight: 8 }}>
+                {val === "ort" ? "7 Günlük Ortalama" : "Bugün"}
               </span>
-            </div>
-          );
-        })}
-      </div>
+            )}
+          />
+          <Bar
+            dataKey="ort"
+            name="ort"
+            fill="url(#hh-ort)"
+            radius={[3, 3, 0, 0]}
+            maxBarSize={14}
+          />
+          <Bar
+            dataKey="bugun"
+            name="bugun"
+            fill="url(#hh-bugun)"
+            radius={[3, 3, 0, 0]}
+            maxBarSize={14}
+          />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -458,7 +520,7 @@ export default function SystemHealthPage() {
           accentColor="#6366f1"
         >
           {loading ? (
-            <Shimmer h={100} />
+            <Shimmer h={240} />
           ) : (
             <HourlyChart
               ortalama={data?.saatlik_trend}

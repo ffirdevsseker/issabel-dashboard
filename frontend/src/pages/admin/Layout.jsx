@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Activity,
+  AlertCircle,
   AlertTriangle,
   BarChart3,
   Bell,
@@ -18,6 +19,7 @@ import {
   Search,
   Settings2,
   Shield,
+  Trophy,
   UserCheck,
   Users,
   X,
@@ -32,6 +34,8 @@ const ADMIN_NAV = [
   { label: "Genel Bakış",          to: "/admin",               icon: LayoutDashboard },
   { label: "Personel",             to: "/admin/personnel",     icon: Users           },
   { label: "Canlı Operasyon",      to: "/admin/operations",    icon: Radio           },
+  { label: "Şikayetler",           to: "/admin/complaints",    icon: AlertCircle     },
+  { label: "Gamification",         to: "/admin/gamification",  icon: Trophy          },
   { label: "Otomasyon & Kurallar", to: "/admin/automation",    icon: Settings2       },
   { label: "Sistem Sağlığı",       to: "/admin/system-health", icon: BrainCircuit    },
   { label: "Raporlar",             to: "/admin/reports",       icon: BarChart3       },

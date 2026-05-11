@@ -5,22 +5,19 @@
  * Sekmeler:
  *   1. Denetim Logları  → operationsApi.getAuditLogs(...)
  *   2. Personel Perf.   → personnelApi.getList({ per_page: 100 })
- *   3. Trendler         → overviewApi.getHourly()
+ *
+ * Not: Saatlik trend grafiği SystemHealth sayfasına taşındı.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3, ChevronLeft, ChevronRight,
   Clock, Download, RefreshCw, CheckCircle2,
-  Users, TrendingUp,
+  Users,
 } from "lucide-react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
-} from "recharts";
 import DateRangePicker from "@/components/admin/DateRangePicker";
 
 import { ADMIN_THEME } from "@/constants/adminTheme";
-import { operationsApi, personnelApi, overviewApi } from "@/services/api";
+import { operationsApi, personnelApi } from "@/services/api";
 import { Panel } from "@/pages/admin/Overview";
 
 /* ─── Renk paleti ────────────────────────────────────────────────────────────── */
@@ -106,9 +103,8 @@ function defaultDateRange() {
 const AUDIT_PAGE_SIZE = 20;
 
 const TABS = [
-  { id: "audit",    label: "Denetim Logları",       Icon: BarChart3 },
-  { id: "perf",     label: "Personel Performansı",   Icon: Users     },
-  { id: "trendler", label: "Trendler",               Icon: TrendingUp },
+  { id: "audit", label: "Denetim Logları",     Icon: BarChart3 },
+  { id: "perf",  label: "Personel Performansı", Icon: Users     },
 ];
 
 export default function AdminReports() {
@@ -128,11 +124,6 @@ export default function AdminReports() {
   const [perfData,     setPerfData]     = useState([]);
   const [perfLoading,  setPerfLoading]  = useState(false);
   const [perfFetched,  setPerfFetched]  = useState(false);
-
-  /* ── Trendler (Sekme 3) ── */
-  const [hourlyData,   setHourlyData]   = useState([]);
-  const [hourlyLoading,setHourlyLoading]= useState(false);
-  const [hourlyFetched,setHourlyFetched]= useState(false);
 
   const fetchAudit = useCallback(async (page = 1) => {
     try {
@@ -178,19 +169,6 @@ export default function AdminReports() {
       .catch(() => { setPerfData([]); setPerfFetched(true); })
       .finally(() => setPerfLoading(false));
   }, [activeTab, perfFetched]);
-
-  /* ── Sekme 3: Trendler — ilk kez açılınca yükle ── */
-  useEffect(() => {
-    if (activeTab !== "trendler" || hourlyFetched) return;
-    setHourlyLoading(true);
-    overviewApi.getHourly()
-      .then(r => {
-        setHourlyData(Array.isArray(r.data) ? r.data : []);
-        setHourlyFetched(true);
-      })
-      .catch(() => { setHourlyData([]); setHourlyFetched(true); })
-      .finally(() => setHourlyLoading(false));
-  }, [activeTab, hourlyFetched]);
 
 
   return (
@@ -611,60 +589,6 @@ export default function AdminReports() {
                     })}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </Panel>
-        )}
-
-        {/* ── TRENDLER (Sekme 3) ────────────────────────────────────────────── */}
-        {activeTab === "trendler" && (
-          <Panel title="Saatlik Çağrı Trendi — Bugün"
-            accentColor={C.busy}
-            badge={hourlyData.length > 0 ? `${hourlyData.length} saat` : null}>
-            {hourlyLoading ? (
-              <Shimmer h={280} />
-            ) : hourlyData.length === 0 ? (
-              <div style={{ padding: "48px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
-                <TrendingUp size={28} color={C.faint} style={{ display: "block", margin: "0 auto 8px" }} />
-                Bugün için saatlik veri bulunamadı.
-              </div>
-            ) : (
-              <div style={{ width: "100%", height: 280 }}>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={hourlyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-                    <XAxis
-                      dataKey="saat"
-                      tick={{ fill: C.muted, fontSize: 10 }}
-                      axisLine={false} tickLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      tick={{ fill: C.muted, fontSize: 10 }}
-                      axisLine={false} tickLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#fff", border: `1px solid ${C.border}`,
-                        borderRadius: 10, fontSize: 12,
-                        boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
-                      }}
-                    />
-                    <Legend
-                      formatter={(val) => {
-                        const m = { toplam: "Toplam", cevaplanan: "Cevaplanan", kacan: "Kaçan" };
-                        return <span style={{ fontSize: 11, color: C.muted }}>{m[val] ?? val}</span>;
-                      }}
-                    />
-                    <Bar dataKey="cevaplanan" name="Cevaplanan" fill={C.active}
-                      radius={[3, 3, 0, 0]} maxBarSize={24} />
-                    <Bar dataKey="kacan" name="Kaçan" fill={C.alarm}
-                      radius={[3, 3, 0, 0]} maxBarSize={24} />
-                    <Bar dataKey="toplam" name="Toplam" fill={C.busy}
-                      fillOpacity={0.35} radius={[3, 3, 0, 0]} maxBarSize={24} />
-                  </BarChart>
-                </ResponsiveContainer>
               </div>
             )}
           </Panel>

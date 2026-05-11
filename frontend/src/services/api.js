@@ -169,4 +169,22 @@ export const systemHealthApi = {
   getInsights: (signal) => api.get("/admin/system/ai-insights", { signal }),
 };
 
+/* ─── Admin · Şikayet Yönetimi + Gamification ────────────────────────────────
+   Backend kaynakları:
+     · /approvals/complaints                (approvals.py — list_complaints)
+     · /approvals/complaints/{id}/decide    (karar query param: "onayla"|"reddet")
+     · /gamification/leaderboard            (gamification.py)                  */
+export const adminOpsApi = {
+  // params: { durum?: "olusturuldu" | "supervisor_inceleme" | "onaylandi" | "reddedildi" }
+  getComplaints: (params) => api.get("/approvals/complaints", { params }),
+
+  // karar: "onayla" → durum=onaylandi · diğer her şey → reddedildi (backend kontratı)
+  decideComplaint: (id, karar, gerekce = "") =>
+    api.post(`/approvals/complaints/${id}/decide`, null, {
+      params: { karar, gerekce },
+    }),
+
+  getLeaderboard: () => api.get("/gamification/leaderboard"),
+};
+
 export default api;

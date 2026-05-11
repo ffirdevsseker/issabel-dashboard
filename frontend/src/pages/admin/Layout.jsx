@@ -28,6 +28,12 @@ import {
 
 import { useAuth } from "@/context/AuthContext";
 import { headerApi } from "@/services/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import logoCompact from "@/assets/logo2.png";
 
 const ADMIN_NAV = [
@@ -211,7 +217,7 @@ export default function AdminLayout() {
     : 0;
 
   return (
-    <>
+    <TooltipProvider delayDuration={0}>
       <style>{`
         @keyframes pulseRing {
           0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.6); }
@@ -340,25 +346,59 @@ export default function AdminLayout() {
               {groupedItems.map((item) => renderNavItem(item, collapsed, "#45c392"))}
             </div>
             <div style={{ marginTop: 8 }}>
-              <div
-                onClick={() => setCollapsed((c) => !c)}
-                style={{
-                  display:    "flex",
-                  alignItems: "center",
-                  gap:        8,
-                  padding:    collapsed ? "9px" : "8px 10px",
-                  borderRadius: 15,
-                  cursor:     "pointer",
-                  transition: "all 0.2s",
-                  color:      "#E8F0FB",
-                  opacity:    0.74,
-                }}
-              >
-                {collapsed
-                  ? <PanelLeftOpen  style={{ width: 18, height: 18 }} />
-                  : <PanelLeftClose style={{ width: 18, height: 18 }} />}
-                {!collapsed && <span style={{ fontSize: 13, fontWeight: 700 }}>Daralt</span>}
-              </div>
+              {collapsed ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      onClick={() => setCollapsed((c) => !c)}
+                      style={{
+                        display:    "flex",
+                        alignItems: "center",
+                        gap:        8,
+                        padding:    "9px",
+                        borderRadius: 15,
+                        cursor:     "pointer",
+                        transition: "all 0.2s",
+                        color:      "#E8F0FB",
+                        opacity:    0.74,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <PanelLeftOpen style={{ width: 18, height: 18 }} />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="right"
+                    style={{
+                      background: "#20344A",
+                      color: "#E8F0FB",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      boxShadow: "0 6px 16px rgba(32,52,74,0.35)",
+                      zIndex: 100,
+                    }}
+                  >
+                    Genişlet
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <div
+                  onClick={() => setCollapsed((c) => !c)}
+                  style={{
+                    display:    "flex",
+                    alignItems: "center",
+                    gap:        8,
+                    padding:    "8px 10px",
+                    borderRadius: 15,
+                    cursor:     "pointer",
+                    transition: "all 0.2s",
+                    color:      "#E8F0FB",
+                    opacity:    0.74,
+                  }}
+                >
+                  <PanelLeftClose style={{ width: 18, height: 18 }} />
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>Daralt</span>
+                </div>
+              )}
             </div>
           </nav>
 
@@ -418,32 +458,91 @@ export default function AdminLayout() {
             {profileOpen && (
               <div
                 style={{
-                  position:    "absolute",
-                  left:        collapsed ? 68 : 8,
-                  bottom:      8,
-                  width:       collapsed ? 200 : "calc(100% - 16px)",
-                  background:  "#fff",
-                  borderRadius: 14,
-                  border:      "1px solid rgba(0,0,0,0.08)",
-                  boxShadow:   "0 12px 28px rgba(15,23,42,0.2)",
-                  overflow:    "hidden",
+                  position:       "absolute",
+                  bottom:         8,
+                  left:           "calc(100% + 8px)",
+                  width:          232,
+                  background:     "rgba(19,35,52,0.95)",
+                  backdropFilter: "blur(12px)",
+                  borderRadius:   16,
+                  border:         "1px solid rgba(255,255,255,0.15)",
+                  boxShadow:      "0 12px 28px rgba(6,12,20,0.42)",
+                  padding:        10,
+                  zIndex:         50,
                 }}
               >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <h3 style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.95)", margin: 0 }}>Profil</h3>
+                  <button
+                    onClick={() => setProfileOpen(false)}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "rgba(255,255,255,0.6)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 4,
+                    }}
+                  >
+                    <X style={{ width: 14, height: 14 }} />
+                  </button>
+                </div>
+
+                <div 
+                  style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: 8, 
+                    padding: 8, 
+                    borderRadius: 12, 
+                    background: "rgba(255,255,255,0.03)", 
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    marginBottom: 12
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: "#274462",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "2px solid rgba(16,185,129,0.4)"
+                    }}
+                  >
+                    <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>{initials}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                    <p style={{ color: "#fff", fontSize: 13, fontWeight: 600, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {displayName}
+                    </p>
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, margin: 0 }}>Admin</p>
+                  </div>
+                </div>
+
                 <button
                   onClick={handleLogout}
                   style={{
                     width:       "100%",
-                    background:  "transparent",
-                    border:      "none",
+                    background:  "rgba(220,38,38,0.1)",
+                    border:      "transparent",
+                    borderRadius: 10,
                     display:     "flex",
                     alignItems:  "center",
                     gap:         8,
-                    padding:     "12px 14px",
-                    color:       "#dc2626",
+                    padding:     "10px 12px",
+                    color:       "#ef4444",
                     fontSize:    13,
-                    fontWeight:  700,
+                    fontWeight:  600,
                     cursor:      "pointer",
+                    transition:  "background 0.2s"
                   }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "rgba(220,38,38,0.15)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "rgba(220,38,38,0.1)"}
                 >
                   <LogOut style={{ width: 14, height: 14 }} />
                   Çıkış Yap
@@ -885,16 +984,15 @@ export default function AdminLayout() {
           </main>
         </div>
       </div>
-    </>
-  );
+    </TooltipProvider>
+    );
 }
-
 // ── Yardımcı bileşenler ────────────────────────────────────────────────────────
 
 function renderNavItem(item, collapsed, activeColor) {
   const Icon = item.icon;
-  return (
-    <NavLink key={item.to} to={item.to} end={item.to === "/admin"} style={{ textDecoration: "none" }}>
+  const link = (
+    <NavLink key={item.to} to={item.to} end={item.to === "/admin"} style={{ textDecoration: "none", position: "relative", display: "block" }}>
       {({ isActive }) => (
         <div
           style={{
@@ -930,6 +1028,30 @@ function renderNavItem(item, collapsed, activeColor) {
       )}
     </NavLink>
   );
+
+  if (collapsed) {
+    return (
+      <Tooltip key={item.to}>
+        <TooltipTrigger asChild>
+          <div>{link}</div>
+        </TooltipTrigger>
+        <TooltipContent 
+          side="right" 
+          style={{ 
+            background: "#20344A", 
+            color: "#E8F0FB", 
+            border: "1px solid rgba(255,255,255,0.1)", 
+            boxShadow: "0 6px 16px rgba(32,52,74,0.35)",
+            zIndex: 100 
+          }}
+        >
+          {item.label}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return link;
 }
 
 function SearchSection({ title, icon, children }) {
@@ -1000,3 +1122,4 @@ function SearchRow({ primary, secondary, badge, badgeColor, onClick }) {
     </div>
   );
 }
+

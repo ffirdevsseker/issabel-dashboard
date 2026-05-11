@@ -23,7 +23,7 @@ import {
   Search, RefreshCw, Plus, Users, Headphones, Coffee, PowerOff,
   AlertTriangle, MoreVertical, ExternalLink, KeyRound, Lock, UserMinus,
   Edit2, X, ChevronDown, ChevronLeft, ChevronRight,
-  Shield, UserCheck, Clock, XCircle, Info, WifiOff,
+  Shield, UserCheck, Clock, XCircle, Info, WifiOff, CheckCircle2,
 } from "lucide-react";
 import { personnelApi, staffApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -142,23 +142,39 @@ function SelectField({ label, value, onChange, options }) {
 
 
 /* ══════════════════════════ Edit Slide-Over ══════════════════════════════════ */
-function EditSlideOver({ person, onClose, onSave }) {
-  const [form, setForm] = useState({ rol: person.rol, ekip: person.ekip, dahili_no: person.dahili_no, queue: "" });
+function EditSlideOver({ person, filters, onClose, onSave }) {
+  const [form, setForm] = useState({
+    rol:      person.rol       || "personel",
+    ekip_id:  person.ekip_id   || "",
+    dahili_no: person.dahili_no || "",
+  });
   const [saving, setSaving] = useState(false);
-  const [done, setDone]     = useState(false);
+  const [done,   setDone]   = useState(false);
+  const [err,    setErr]    = useState(null);
 
   const handleSave = async () => {
-    setSaving(true);
+    setSaving(true); setErr(null);
     try {
-      await staffApi.updateRole(person.id, {
-        rol_id:    form.rol    !== person.rol    ? form.rol    : undefined,
-        ekip_id:   form.ekip   !== person.ekip   ? form.ekip   : undefined,
-        dahili_no: form.dahili_no !== person.dahili_no ? form.dahili_no : undefined,
-      });
-    } catch { /* mock — API yokken sessiz geç */ }
-    setDone(true);
-    setTimeout(() => { onSave({ ...person, ...form }); onClose(); }, 800);
-    setSaving(false);
+      const payload = {};
+      if (form.rol       !== (person.rol       || "personel"))  payload.rol       = form.rol;
+      if (form.ekip_id   !== (person.ekip_id   || ""))          payload.ekip_id   = form.ekip_id   || null;
+      if (form.dahili_no !== (person.dahili_no || ""))          payload.dahili_no = form.dahili_no || null;
+
+      // Hiçbir şey değişmemişse da `rol` + `ekip_id` gönder (backend zorunlu alan kontrolünü geçer)
+      if (Object.keys(payload).length === 0) {
+        setDone(true);
+        setTimeout(() => { onSave({ ...person }); onClose(); }, 600);
+        setSaving(false);
+        return;
+      }
+
+      const res = await personnelApi.update(person.id, payload);
+      setDone(true);
+      setTimeout(() => { onSave(res.data); onClose(); }, 600);
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail || "Güncelleme başarısız. Sunucu hatası.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -183,11 +199,18 @@ function EditSlideOver({ person, onClose, onSave }) {
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Yetki & Atama</p>
 
+          {err && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
+              <AlertTriangle size={13} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-[11px] text-red-700 font-semibold">{err}</p>
+            </div>
+          )}
+
           {/* Rol toggle */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">Rol</label>
             <div className="grid grid-cols-2 gap-2">
-              {["supervisor","agent"].map(r => (
+              {[["supervisor","Süpervizör"],["personel","Personel"]].map(([r, label]) => (
                 <button key={r} onClick={() => setForm(f => ({...f, rol:r}))}
                   className={cn("py-2.5 rounded-lg border text-sm font-semibold transition-all",
                     form.rol === r
@@ -196,7 +219,7 @@ function EditSlideOver({ person, onClose, onSave }) {
                         : "border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-400"
                       : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
                   )}>
-                  {r === "supervisor" ? "Süpervizör" : "Personel"}
+                  {label}
                 </button>
               ))}
             </div>
@@ -204,15 +227,17 @@ function EditSlideOver({ person, onClose, onSave }) {
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Ekip</label>
-            <SelectField label="Ekip seçin" value={form.ekip} onChange={v => setForm(f=>({...f,ekip:v}))} options={TEAMS} />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Varsayılan Kuyruk</label>
-            <SelectField label="Kuyruk seçin" value={form.queue} onChange={v => setForm(f=>({...f,queue:v}))} options={QUEUES} />
+            <SelectField
+              label="Ekip seçin"
+              value={form.ekip_id}
+              onChange={v => setForm(f=>({...f, ekip_id:v}))}
+              options={(filters?.ekipler || []).map(e => ({ v: e.id, l: e.ad }))}
+            />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Dahili Numara</label>
-            <input value={form.dahili_no || ""} onChange={e => setForm(f=>({...f,dahili_no:e.target.value}))}
+            <input value={form.dahili_no} onChange={e => setForm(f=>({...f,dahili_no:e.target.value}))}
+              placeholder="Örn: 109"
               className="w-full py-2 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 font-mono" />
           </div>
 
@@ -241,8 +266,285 @@ function EditSlideOver({ person, onClose, onSave }) {
 }
 
 
+/* ══════════════════════════ Toast ═══════════════════════════════════════════ */
+function Toast({ toast, onDismiss }) {
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(onDismiss, 3500);
+    return () => clearTimeout(t);
+  }, [toast, onDismiss]);
+
+  if (!toast) return null;
+  const isOk = toast.type === "success";
+  return (
+    <div
+      style={{
+        position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+        display: "flex", alignItems: "center", gap: 10,
+        background: isOk ? "#ecfdf5" : "#fef2f2",
+        border: `1px solid ${isOk ? "#6ee7b7" : "#fca5a5"}`,
+        borderRadius: 12, padding: "12px 18px",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        minWidth: 280, maxWidth: 400,
+        animation: "slideUp 0.25s ease",
+      }}
+    >
+      {isOk
+        ? <CheckCircle2 size={18} style={{ color: "#10b981", flexShrink: 0 }} />
+        : <AlertTriangle size={18} style={{ color: "#ef4444", flexShrink: 0 }} />
+      }
+      <span style={{ fontSize: 13, fontWeight: 600, color: isOk ? "#065f46" : "#991b1b", flex: 1 }}>
+        {toast.msg}
+      </span>
+      <button onClick={onDismiss}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: "#9ca3af" }}>
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
+
+/* ══════════════════════════ Yeni Personel Modal ════════════════════════════ */
+function YeniPersonelModal({ filters, onClose, onSuccess }) {
+  const [form, setForm] = useState({
+    ad_soyad: "", kullanici_adi: "", dahili_no: "", rol: "personel", ekip_id: "", sifre: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr]       = useState(null);
+
+  function setF(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.ad_soyad.trim() || !form.kullanici_adi.trim() || !form.sifre.trim()) {
+      setErr("Ad soyad, kullanıcı adı ve şifre zorunludur."); return;
+    }
+    if (form.sifre.length < 6) {
+      setErr("Şifre en az 6 karakter olmalıdır."); return;
+    }
+    setSaving(true); setErr(null);
+    try {
+      await personnelApi.create({
+        ad_soyad:     form.ad_soyad.trim(),
+        kullanici_adi: form.kullanici_adi.trim(),
+        dahili_no:    form.dahili_no.trim() || null,
+        rol:          form.rol,
+        ekip_id:      form.ekip_id || null,
+        sifre:        form.sifre,
+      });
+      onSuccess("Personel başarıyla oluşturuldu.");
+      onClose();
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail || "Personel oluşturulamadı. Sunucu hatası.");
+      setSaving(false);
+    }
+  }
+
+  const overlay = { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000,
+    display:"flex", alignItems:"center", justifyContent:"flex-end" };
+  const drawer  = { width: 420, height:"100%", background:"#fff", boxShadow:"-8px 0 32px rgba(0,0,0,0.15)",
+    display:"flex", flexDirection:"column" };
+  const hdr     = { padding:"20px 24px", borderBottom:"1px solid #f1f5f9",
+    display:"flex", alignItems:"center", justifyContent:"space-between" };
+  const body    = { flex:1, overflowY:"auto", padding:"24px" };
+  const ftr     = { padding:"16px 24px", borderTop:"1px solid #f1f5f9",
+    display:"flex", gap:10, justifyContent:"flex-end" };
+  const lbl     = { display:"block", fontSize:11, fontWeight:700, color:"#475569",
+    textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 };
+  const inp     = { width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0",
+    borderRadius:8, fontSize:13, color:"#0f172a", background:"#f8fafc", boxSizing:"border-box",
+    outline:"none" };
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={drawer} onClick={e => e.stopPropagation()}>
+        <div style={hdr}>
+          <div>
+            <p style={{ fontSize:15, fontWeight:700, color:"#0f172a" }}>Yeni Personel Ekle</p>
+            <p style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>Müşteri Hizmetleri departmanına</p>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8" }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={body}>
+          {err && (
+            <div style={{ background:"#fef2f2", border:"1px solid #fca5a5", borderRadius:8,
+              padding:"10px 14px", marginBottom:16, fontSize:12, color:"#991b1b", fontWeight:600 }}>
+              {err}
+            </div>
+          )}
+          <form id="yeni-personel-form" onSubmit={handleSubmit}>
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+              <div>
+                <label style={lbl}>Ad Soyad *</label>
+                <input style={inp} value={form.ad_soyad} autoFocus
+                  onChange={e => setF("ad_soyad", e.target.value)}
+                  placeholder="Örn: Ahmet Yılmaz" />
+              </div>
+
+              <div>
+                <label style={lbl}>Kullanıcı Adı *</label>
+                <input style={inp} value={form.kullanici_adi}
+                  onChange={e => setF("kullanici_adi", e.target.value.toLowerCase().replace(/\s/g,""))}
+                  placeholder="Örn: ahmet.yilmaz" />
+              </div>
+
+              <div>
+                <label style={lbl}>Dahili No</label>
+                <input style={inp} value={form.dahili_no}
+                  onChange={e => setF("dahili_no", e.target.value)}
+                  placeholder="Örn: 109" />
+              </div>
+
+              <div>
+                <label style={lbl}>Rol *</label>
+                <div style={{ display:"flex", gap:8 }}>
+                  {["personel","supervisor"].map(r => (
+                    <button key={r} type="button"
+                      onClick={() => setF("rol", r)}
+                      style={{
+                        flex:1, padding:"8px 12px", borderRadius:8, fontSize:12, fontWeight:700,
+                        cursor:"pointer", transition:"all 0.15s",
+                        background: form.rol === r ? "#6366f1" : "#f8fafc",
+                        color:      form.rol === r ? "#fff"    : "#64748b",
+                        border:     form.rol === r ? "1.5px solid #6366f1" : "1px solid #e2e8f0",
+                      }}>
+                      {r === "personel" ? "Personel" : "Supervisor"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={lbl}>Ekip</label>
+                <select style={inp} value={form.ekip_id} onChange={e => setF("ekip_id", e.target.value)}>
+                  <option value="">— Ekip seçin (opsiyonel) —</option>
+                  {(filters?.ekipler || []).map(e => (
+                    <option key={e.id} value={e.id}>{e.ad}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={lbl}>Şifre *</label>
+                <input style={inp} type="password" value={form.sifre}
+                  onChange={e => setF("sifre", e.target.value)}
+                  placeholder="En az 6 karakter" />
+              </div>
+
+            </div>
+          </form>
+        </div>
+
+        <div style={ftr}>
+          <button onClick={onClose} disabled={saving}
+            style={{ padding:"9px 18px", borderRadius:8, border:"1px solid #e2e8f0",
+              background:"#f8fafc", fontSize:13, fontWeight:600, cursor:"pointer", color:"#64748b" }}>
+            İptal
+          </button>
+          <button form="yeni-personel-form" type="submit" disabled={saving}
+            style={{ padding:"9px 18px", borderRadius:8, border:"none",
+              background: saving ? "#a5b4fc" : "#6366f1",
+              color:"#fff", fontSize:13, fontWeight:700, cursor: saving ? "not-allowed" : "pointer" }}>
+            {saving ? "Kaydediliyor…" : "Oluştur"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ══════════════════════════ Şifre Sıfırlama Modal ══════════════════════════ */
+function SifreSifirlaModal({ person, onClose, onSuccess }) {
+  const [yeni, setYeni]     = useState("");
+  const [konfirm, setKonfirm] = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (yeni.length < 6) { setErr("Şifre en az 6 karakter olmalıdır."); return; }
+    if (yeni !== konfirm) { setErr("Şifreler eşleşmiyor."); return; }
+    setSaving(true); setErr(null);
+    try {
+      await personnelApi.resetPassword(person.id, { yeni_sifre: yeni });
+      onSuccess(`${person.ad_soyad} için şifre başarıyla sıfırlandı.`);
+      onClose();
+    } catch (ex) {
+      setErr(ex?.response?.data?.detail || "Şifre sıfırlanamadı.");
+      setSaving(false);
+    }
+  }
+
+  const overlay = { position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:1000,
+    display:"flex", alignItems:"center", justifyContent:"center" };
+  const modal   = { background:"#fff", borderRadius:16, width:400, padding:28,
+    boxShadow:"0 20px 60px rgba(0,0,0,0.2)" };
+  const lbl     = { display:"block", fontSize:11, fontWeight:700, color:"#475569",
+    textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:6 };
+  const inp     = { width:"100%", padding:"9px 12px", border:"1px solid #e2e8f0",
+    borderRadius:8, fontSize:13, color:"#0f172a", background:"#f8fafc", boxSizing:"border-box" };
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={modal} onClick={e => e.stopPropagation()}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+          <div>
+            <p style={{ fontSize:15, fontWeight:700, color:"#0f172a" }}>Şifre Sıfırla</p>
+            <p style={{ fontSize:11, color:"#94a3b8", marginTop:2 }}>{person?.ad_soyad}</p>
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:"#94a3b8" }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {err && (
+          <div style={{ background:"#fef2f2", border:"1px solid #fca5a5", borderRadius:8,
+            padding:"10px 14px", marginBottom:16, fontSize:12, color:"#991b1b", fontWeight:600 }}>
+            {err}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div>
+              <label style={lbl}>Yeni Şifre</label>
+              <input style={inp} type="password" value={yeni} autoFocus
+                onChange={e => setYeni(e.target.value)} placeholder="En az 6 karakter" />
+            </div>
+            <div>
+              <label style={lbl}>Şifre Tekrar</label>
+              <input style={inp} type="password" value={konfirm}
+                onChange={e => setKonfirm(e.target.value)} placeholder="Aynı şifreyi girin" />
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:24 }}>
+            <button type="button" onClick={onClose} disabled={saving}
+              style={{ padding:"9px 18px", borderRadius:8, border:"1px solid #e2e8f0",
+                background:"#f8fafc", fontSize:13, fontWeight:600, cursor:"pointer", color:"#64748b" }}>
+              İptal
+            </button>
+            <button type="submit" disabled={saving}
+              style={{ padding:"9px 18px", borderRadius:8, border:"none",
+                background: saving ? "#fbbf24" : "#f59e0b",
+                color:"#fff", fontSize:13, fontWeight:700, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "Kaydediliyor…" : "Şifreyi Sıfırla"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
 /* ══════════════════════════ Üç Nokta Aksiyon Menüsü ═════════════════════════ */
-function ThreeDotsMenu({ person, isAdmin, onEdit, onDetail }) {
+function ThreeDotsMenu({ person, isAdmin, onEdit, onDetail, onSifreSifirla, onKilitle, onSoftDelete }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -263,12 +565,16 @@ function ThreeDotsMenu({ person, isAdmin, onEdit, onDetail }) {
             {person.ad_soyad}
           </div>
           {[
-            { label:"Detaya Git",    Icon:ExternalLink, color:"text-blue-600",   fn: onDetail },
-            { label:"Düzenle",       Icon:Edit2,        color:"text-gray-700",   fn: onEdit   },
-            { label:"Şifre Sıfırla", Icon:KeyRound,     color:"text-amber-600",  fn: () => alert("TODO: Şifre sıfırlama") },
-            { label:"Hesabı Kilitle",Icon:Lock,         color:"text-gray-500",   fn: () => alert("TODO: Hesap kilitleme") },
+            { label:"Detaya Git",    Icon:ExternalLink, color:"text-blue-600",  fn: onDetail },
+            { label:"Düzenle",       Icon:Edit2,        color:"text-gray-700",  fn: onEdit   },
+            { label:"Şifre Sıfırla", Icon:KeyRound,     color:"text-amber-600", fn: () => { onSifreSifirla(person); setOpen(false); } },
+            { label: person.kilitli ? "Kilidi Aç" : "Hesabı Kilitle",
+              Icon:Lock,
+              color: person.kilitli ? "text-emerald-600" : "text-gray-500",
+              fn: () => { onKilitle(person); setOpen(false); }
+            },
           ].map(({ label, Icon, color, fn }) => (
-            <button key={label} onClick={() => { fn(); setOpen(false); }}
+            <button key={label} onClick={() => { fn(); }}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold hover:bg-gray-50 transition-colors ${color}`}>
               <Icon size={12} /> {label}
             </button>
@@ -277,10 +583,10 @@ function ThreeDotsMenu({ person, isAdmin, onEdit, onDetail }) {
             <>
               <div className="h-px bg-gray-50 mx-2" />
               <button onClick={() => {
-                if (window.confirm(`${person.ad_soyad} pasif edilecek. Onaylıyor musunuz?`)) {
-                  alert("TODO: soft delete API");
-                }
                 setOpen(false);
+                if (window.confirm(`${person.ad_soyad} pasif edilecek. Onaylıyor musunuz?`)) {
+                  onSoftDelete(person.id);
+                }
               }}
                 className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors">
                 <UserMinus size={12} /> Soft Delete (Pasif Et)
@@ -307,6 +613,12 @@ function MatrisTab({ isAdmin }) {
   const [page,     setPage]     = useState(1);
   const [params,   setParams]   = useState({ q:"", ekip_id:"", rol:"", durum:"" });
   const pollRef = useRef(null);
+
+  // Modal & toast state
+  const [yeniPersonelOpen,   setYeniPersonelOpen]   = useState(false);
+  const [sifreSifirlaKisi,   setSifreSifirlaKisi]   = useState(null);
+  const [toast,              setToast]              = useState(null);
+  const showToast = (msg, type = "success") => setToast({ msg, type });
 
   /* Filter options */
   useEffect(() => {
@@ -353,6 +665,33 @@ function MatrisTab({ isAdmin }) {
   }, [page, params]);
 
   useEffect(() => { fetchList(); }, [fetchList]);
+
+  /* ── Kilitle / Kilidi Aç ─────────────────────────────────────────────────── */
+  const handleKilitle = useCallback(async (person) => {
+    const yeniKilitli = !person.kilitli;
+    try {
+      await personnelApi.lock(person.id, { kilitli: yeniKilitli });
+      setItems(prev => prev.map(p => p.id === person.id ? { ...p, kilitli: yeniKilitli } : p));
+      showToast(yeniKilitli
+        ? `${person.ad_soyad} hesabı kilitlendi.`
+        : `${person.ad_soyad} kilidi açıldı.`
+      );
+    } catch (ex) {
+      showToast(ex?.response?.data?.detail || "İşlem başarısız.", "error");
+    }
+  }, []);
+
+  /* ── Soft Delete ─────────────────────────────────────────────────────────── */
+  const handleSoftDelete = useCallback(async (userId) => {
+    try {
+      await personnelApi.softDelete(userId);
+      setItems(prev => prev.filter(p => p.id !== userId));
+      setTotal(t => Math.max(0, t - 1));
+      showToast("Personel pasife alındı.");
+    } catch (ex) {
+      showToast(ex?.response?.data?.detail || "Silme işlemi başarısız.", "error");
+    }
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const overrun    = stats?.mola_asimi || MOCK_PERSONS.filter(p => p.mola_asimi_dk > 0).length;
@@ -438,7 +777,7 @@ function MatrisTab({ isAdmin }) {
               Yenile
             </button>
             {isAdmin && (
-              <button onClick={() => alert("TODO: Yeni personel modalı")}
+              <button onClick={() => setYeniPersonelOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
                 <Plus size={12} /> Yeni Personel
               </button>
@@ -492,6 +831,11 @@ function MatrisTab({ isAdmin }) {
                           +{p.mola_asimi_dk}DK AŞIM
                         </span>
                       )}
+                      {p.kilitli && (
+                        <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 border border-slate-300 rounded px-1.5 whitespace-nowrap">
+                          🔒 KİLİTLİ
+                        </span>
+                      )}
                     </div>
                     <p className="text-[10px] text-gray-400 mt-0.5">@{p.kullanici_adi || "—"}</p>
                   </div>
@@ -529,6 +873,9 @@ function MatrisTab({ isAdmin }) {
                     person={p} isAdmin={isAdmin}
                     onDetail={() => navigate(`/admin/personnel/${p.id}`)}
                     onEdit={() => setEditPerson(p)}
+                    onSifreSifirla={setSifreSifirlaKisi}
+                    onKilitle={handleKilitle}
+                    onSoftDelete={handleSoftDelete}
                   />
                 </div>
               </div>
@@ -570,9 +917,37 @@ function MatrisTab({ isAdmin }) {
 
       {/* Edit Slide-Over */}
       {editPerson && (
-        <EditSlideOver person={editPerson} onClose={() => setEditPerson(null)}
-          onSave={updated => setItems(prev => prev.map(p => p.id===updated.id ? {...p,...updated} : p))} />
+        <EditSlideOver
+          person={editPerson}
+          filters={filters}
+          onClose={() => setEditPerson(null)}
+          onSave={updated => {
+            setItems(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p));
+            showToast(`${updated.ad_soyad || editPerson.ad_soyad} güncellendi.`);
+          }}
+        />
       )}
+
+      {/* Yeni Personel Modal */}
+      {yeniPersonelOpen && (
+        <YeniPersonelModal
+          filters={filters}
+          onClose={() => setYeniPersonelOpen(false)}
+          onSuccess={msg => { showToast(msg); fetchList(true); }}
+        />
+      )}
+
+      {/* Şifre Sıfırla Modal */}
+      {sifreSifirlaKisi && (
+        <SifreSifirlaModal
+          person={sifreSifirlaKisi}
+          onClose={() => setSifreSifirlaKisi(null)}
+          onSuccess={msg => showToast(msg)}
+        />
+      )}
+
+      {/* Toast Bildirimi */}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }
@@ -666,11 +1041,64 @@ function DayDetailPanel({ sel, onClose }) {
   );
 }
 
+/* ── Haftalık tarih yardımcıları ────────────────────────────────────────── */
+const DAY_NAMES = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
+const AVATAR_COLORS = ["#6366f1","#10b981","#f59e0b","#3b82f6","#ec4899","#8b5cf6","#06b6d4","#f97316"];
+function avatarColor(id) {
+  if (!id) return "#6366f1";
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function getWeekMeta(offset) {
+  const today = new Date();
+  const dow = today.getDay();  // 0=Sun
+  const diff = dow === 0 ? -6 : 1 - dow;  // distance to Monday
+  const mon = new Date(today);
+  mon.setDate(today.getDate() + diff + offset * 7);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const fmt  = (d) => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}`;
+  const fmtY = (d) => `${String(d.getDate()).padStart(2,'0')} ${d.toLocaleString("tr-TR",{month:"short"})} ${d.getFullYear()}`;
+  const days = Array.from({length:7}, (_,i) => {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    return {
+      label: DAY_NAMES[i],
+      date:  fmt(d),
+      today: d.toDateString() === today.toDateString(),
+    };
+  });
+  return { weekLabel: `${fmtY(mon)} – ${fmtY(sun)}`, weekOffset: offset, days };
+}
+
 function VardiyaTab() {
-  const [selected, setSelected] = useState(null);
-  const totalViol = MOCK_PERSONS.reduce((s,p) => {
-    const days = ATTENDANCE[p.id] || [];
-    return s + days.filter(d => d.planned && (!d.actual_in || d.late>5 || d.early>10 || d.bov)).length;
+  const [selected,    setSelected]    = useState(null);
+  const [weekOffset,  setWeekOffset]  = useState(0);
+  const [personList,  setPersonList]  = useState([]);
+  const [attendance,  setAttendance]  = useState({});
+  const [loading,     setLoading]     = useState(true);
+
+  const { weekLabel, days: weekDays } = getWeekMeta(weekOffset);
+
+  useEffect(() => {
+    setLoading(true);
+    setSelected(null);
+    Promise.allSettled([
+      personnelApi.getList({ per_page: 50 }),
+      personnelApi.getAttendance(weekOffset),
+    ]).then(([personRes, attRes]) => {
+      if (personRes.status === "fulfilled") {
+        setPersonList(personRes.value.data?.items || []);
+      }
+      if (attRes.status === "fulfilled") {
+        setAttendance(attRes.value.data?.attendance || {});
+      }
+      setLoading(false);
+    });
+  }, [weekOffset]);
+
+  const totalViol = personList.reduce((s, p) => {
+    const days = attendance[p.id] || [];
+    return s + days.filter(d => d.planned && (!d.actual_in || d.late > 5 || d.bov)).length;
   }, 0);
 
   return (
@@ -679,13 +1107,32 @@ function VardiyaTab() {
         {/* Hafta başlığı */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3.5 flex items-center justify-between">
           <div>
-            <p className="font-bold text-gray-900 text-sm">04 – 10 Mayıs 2026</p>
-            <p className="text-xs text-gray-400 mt-0.5">Bu hafta <strong className="text-red-500">{totalViol}</strong> devam ihlali</p>
+            <p className="font-bold text-gray-900 text-sm">{weekLabel}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {loading ? "Yükleniyor…" : <><strong className="text-red-500">{totalViol}</strong> devam ihlali</>}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 transition-colors"><ChevronLeft size={14}/></button>
-            <span className="text-xs font-semibold text-gray-500 px-1">Bu Hafta</span>
-            <button className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 transition-colors"><ChevronRight size={14}/></button>
+            <button
+              onClick={() => setWeekOffset(o => o - 1)}
+              className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 transition-colors">
+              <ChevronLeft size={14}/>
+            </button>
+            <button
+              onClick={() => setWeekOffset(0)}
+              className={cn(
+                "text-xs font-semibold px-2 py-1 rounded-lg border transition-colors",
+                weekOffset === 0
+                  ? "border-indigo-300 bg-indigo-50 text-indigo-600"
+                  : "border-gray-200 text-gray-500 hover:bg-gray-50"
+              )}>
+              {weekOffset === 0 ? "Bu Hafta" : weekOffset < 0 ? `${-weekOffset} hafta önce` : `${weekOffset} hafta sonra`}
+            </button>
+            <button
+              onClick={() => setWeekOffset(o => o + 1)}
+              className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 transition-colors">
+              <ChevronRight size={14}/>
+            </button>
           </div>
         </div>
 
@@ -699,56 +1146,74 @@ function VardiyaTab() {
 
         {/* Matris tablosu */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="border-collapse" style={{ minWidth:800, width:"100%" }}>
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="sticky left-0 z-10 bg-gray-50/80 px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-100 w-[176px]">Personel</th>
-                  {WEEK_DAYS.map((d,i) => (
-                    <th key={i} className={cn("px-2 py-3 text-center text-[10px] font-bold uppercase tracking-wider w-[104px]", d.today ? "text-indigo-600 bg-indigo-50/40" : "text-gray-500 bg-gray-50/80")}>
-                      <p>{d.label}</p>
-                      <p className={cn("text-[9px] font-medium mt-0.5", d.today ? "text-indigo-400":"text-gray-400")}>{d.date}</p>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {MOCK_PERSONS.map(person => {
-                  const days = ATTENDANCE[person.id] || Array(7).fill({planned:null});
-                  return (
-                    <tr key={person.id} className="hover:bg-gray-50/30 transition-colors">
-                      <td className="sticky left-0 z-10 bg-white px-4 py-2.5 border-r border-gray-100">
-                        <div className="flex items-center gap-2">
-                          <Avatar name={person.ad_soyad} color={person._c||"#6366f1"} size={28}/>
-                          <div>
-                            <p className="text-[11px] font-bold text-gray-800 whitespace-nowrap">{person.ad_soyad}</p>
-                            <p className="text-[9px] text-gray-400">{person.ekip}</p>
+          {loading ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              <RefreshCw size={18} className="mx-auto mb-2 text-gray-300 animate-spin" />
+              Yükleniyor…
+            </div>
+          ) : personList.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              <Users size={28} className="mx-auto mb-2 text-gray-200" />
+              Personel bulunamadı
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="border-collapse" style={{ minWidth:800, width:"100%" }}>
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="sticky left-0 z-10 bg-gray-50/80 px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-100 w-[176px]">Personel</th>
+                    {weekDays.map((d,i) => (
+                      <th key={i} className={cn("px-2 py-3 text-center text-[10px] font-bold uppercase tracking-wider w-[104px]", d.today ? "text-indigo-600 bg-indigo-50/40" : "text-gray-500 bg-gray-50/80")}>
+                        <p>{d.label}</p>
+                        <p className={cn("text-[9px] font-medium mt-0.5", d.today ? "text-indigo-400":"text-gray-400")}>{d.date}</p>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {personList.map(person => {
+                    const days = attendance[person.id] || Array(7).fill({ planned: null });
+                    const color = person._c || avatarColor(person.id);
+                    return (
+                      <tr key={person.id} className="hover:bg-gray-50/30 transition-colors">
+                        <td className="sticky left-0 z-10 bg-white px-4 py-2.5 border-r border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={person.ad_soyad} color={color} size={28}/>
+                            <div>
+                              <p className="text-[11px] font-bold text-gray-800 whitespace-nowrap">{person.ad_soyad}</p>
+                              <p className="text-[9px] text-gray-400">{person.ekip || "—"}</p>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      {days.map((dayData, dayIdx) => {
-                        const key = `${person.id}-${dayIdx}`;
-                        return (
-                          <td key={dayIdx} className={cn("p-1.5", WEEK_DAYS[dayIdx].today && "bg-indigo-50/10")}>
-                            <AttendanceCell
-                              dayData={dayData}
-                              isToday={WEEK_DAYS[dayIdx].today}
-                              isSelected={selected?.key === key}
-                              onClick={() => {
-                                if (!dayData.planned) return;
-                                if (selected?.key === key) { setSelected(null); return; }
-                                setSelected({ key, person, dayData, dayLabel:`${WEEK_DAYS[dayIdx].label} ${WEEK_DAYS[dayIdx].date}.2026` });
-                              }}
-                            />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        {days.map((dayData, dayIdx) => {
+                          const key = `${person.id}-${dayIdx}`;
+                          return (
+                            <td key={dayIdx} className={cn("p-1.5", weekDays[dayIdx].today && "bg-indigo-50/10")}>
+                              <AttendanceCell
+                                dayData={dayData}
+                                isToday={weekDays[dayIdx].today}
+                                isSelected={selected?.key === key}
+                                onClick={() => {
+                                  if (!dayData.planned) return;
+                                  if (selected?.key === key) { setSelected(null); return; }
+                                  setSelected({
+                                    key,
+                                    person: { ...person, _c: color },
+                                    dayData,
+                                    dayLabel: `${weekDays[dayIdx].label} ${weekDays[dayIdx].date}`,
+                                  });
+                                }}
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

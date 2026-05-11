@@ -27,7 +27,7 @@ POST /admin/operations/training-flag      → personeli eğitime gönder
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, date as date_type, timedelta
 from typing import Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -80,26 +80,36 @@ async def _audit(
     """
     eski_json = json.dumps(eski, default=str, ensure_ascii=False)
     yeni_json = json.dumps(yeni, default=str, ensure_ascii=False)
-    # Gerçek denetim_izleri şeması:
-    #   islem_yapan_id (UUID), eylem (VARCHAR), hedef_tablo (VARCHAR),
-    #   hedef_id (VARCHAR), eski_veri (JSON), yeni_veri (JSON), created_at
-    try:
-        await db.execute(text("SAVEPOINT _audit_sp"))
-        await db.execute(text("""
-            INSERT INTO denetim_izleri
-                (islem_yapan_id, eylem, hedef_tablo, hedef_id,
-                 eski_veri, yeni_veri, created_at)
+    # İki olası şema versiyonu sırayla denenir; SAVEPOINT her biri izole eder.
+    _INSERT_ATTEMPTS = [
+        # Şema B (yeni): user_id, aksiyon, tablo_adi, kayit_id, eski_deger, yeni_deger, tarih
+        ("""INSERT INTO denetim_izleri
+                (user_id, aksiyon, tablo_adi, kayit_id, eski_deger, yeni_deger, tarih)
             VALUES
                 (CAST(:uid AS uuid), :aks, :tablo, :kid,
-                 CAST(:eski AS json), CAST(:yeni AS json), NOW())
-        """), {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
-               "kid": kayit_id or "", "eski": eski_json, "yeni": yeni_json})
-        await db.execute(text("RELEASE SAVEPOINT _audit_sp"))
-    except Exception:
+                 CAST(:eski AS json), CAST(:yeni AS json), NOW())""",
+         {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
+          "kid": kayit_id or "", "eski": eski_json, "yeni": yeni_json}),
+        # Şema A (eski model): islem_yapan_id, eylem, hedef_tablo, hedef_id, eski_veri, yeni_veri, created_at
+        ("""INSERT INTO denetim_izleri
+                (islem_yapan_id, eylem, hedef_tablo, hedef_id, eski_veri, yeni_veri, created_at)
+            VALUES
+                (CAST(:uid AS uuid), :aks, :tablo, :kid,
+                 CAST(:eski AS json), CAST(:yeni AS json), NOW())""",
+         {"uid": admin_id, "aks": aksiyon, "tablo": tablo,
+          "kid": kayit_id or "", "eski": eski_json, "yeni": yeni_json}),
+    ]
+    for _sql, _params in _INSERT_ATTEMPTS:
         try:
-            await db.execute(text("ROLLBACK TO SAVEPOINT _audit_sp"))
+            await db.execute(text("SAVEPOINT _audit_sp"))
+            await db.execute(text(_sql), _params)
+            await db.execute(text("RELEASE SAVEPOINT _audit_sp"))
+            break  # başarılı — diğerini deneme
         except Exception:
-            pass  # audit kaybedilse de işlem devam etmeli
+            try:
+                await db.execute(text("ROLLBACK TO SAVEPOINT _audit_sp"))
+            except Exception:
+                pass  # audit kaybedilse de işlem devam etmeli
 
 
 # ═══════════════════════════ 1. SUMMARY (KPI Şeridi) ═════════════════════════
@@ -278,15 +288,8 @@ async def supervisors_matrix(
                 FROM sikayetler sk
                 WHERE sk.supervisor_id = s.id
                   AND sk.durum::text IN ('beklemede','incelemede')
-            )                                                             AS bekleyen_sikayet,
-            -- Bugün verdiği karar sayısı (audit'ten — gerçek kolon adları)
-            (
-                SELECT COUNT(*)
-                FROM denetim_izleri di
-                WHERE di.islem_yapan_id = s.id
-                  AND di.created_at >= CURRENT_DATE
-                  AND di.eylem IN ('update','override','xp_correction')
-            )                                                             AS bugun_karar
+            )                                                             AS bekleyen_sikayet
+            -- bugun_karar denetim_izleri'ne bağlı; aşağıda Python'da ayrı try/except ile eklenir
         FROM mh_supervisors s
         LEFT JOIN supervisor_ekip se ON se.supervisor_id = s.id
         LEFT JOIN ekipler         ek ON ek.id = se.ekip_id
@@ -294,6 +297,32 @@ async def supervisors_matrix(
         GROUP BY s.id, s.ad_soyad, s.kullanici_adi, s.dahili_no, s.unvan
         ORDER BY s.ad_soyad
     """), {"dept": DEPARTMENT_FILTER_NAME})).fetchall()
+
+    # bugun_karar: denetim_izleri şeması belirsiz — SAVEPOINT ile her versiyonu dene
+    karar_map: dict = {}
+    for _sp, sql_attempt in [
+        ("_km_sp1", """SELECT user_id::text AS uid, COUNT(*) AS cnt
+           FROM denetim_izleri
+           WHERE tarih >= CURRENT_DATE
+             AND aksiyon::text IN ('update','override','xp_correction')
+           GROUP BY user_id"""),
+        ("_km_sp2", """SELECT islem_yapan_id::text AS uid, COUNT(*) AS cnt
+           FROM denetim_izleri
+           WHERE created_at >= CURRENT_DATE
+             AND eylem IN ('update','override','xp_correction')
+           GROUP BY islem_yapan_id"""),
+    ]:
+        try:
+            await db.execute(text(f"SAVEPOINT {_sp}"))
+            audit_rows = (await db.execute(text(sql_attempt))).fetchall()
+            await db.execute(text(f"RELEASE SAVEPOINT {_sp}"))
+            karar_map = {r.uid: int(r.cnt) for r in audit_rows}
+            break  # başarılı
+        except Exception:
+            try:
+                await db.execute(text(f"ROLLBACK TO SAVEPOINT {_sp}"))
+            except Exception:
+                pass
 
     return [
         {
@@ -310,7 +339,7 @@ async def supervisors_matrix(
             "toplam_bekleyen":  int(r.bekleyen_mola or 0)
                               + int(r.bekleyen_vardiya or 0)
                               + int(r.bekleyen_sikayet or 0),
-            "bugun_karar":      int(r.bugun_karar or 0),
+            "bugun_karar":      karar_map.get(r.id, 0),
         }
         for r in rows
     ]
@@ -439,58 +468,164 @@ async def crisis_radar(
 
 @router.get("/audit-logs")
 async def audit_logs(
-    limit: int = Query(50, ge=1, le=200),
-    only_overrides: bool = Query(False),
+    page:           int           = Query(1,  ge=1),
+    page_size:      int           = Query(20, ge=1, le=100),
+    only_overrides: bool          = Query(False),
+    from_date:      Optional[str] = Query(None),  # YYYY-MM-DD
+    to_date:        Optional[str]  = Query(None),  # YYYY-MM-DD
+    db:             AsyncSession  = Depends(get_async_db),
+    _:              User          = Depends(ADMIN),
+):
+    """
+    Supervizör eylemleri (mola onayı, XP düzeltme, override).
+    Sayfalama: page + page_size.
+    Tarih filtresi: from_date / to_date (YYYY-MM-DD). Varsayılan: son 7 gün.
+    Kolon adları runtime'da information_schema'dan tespit edilir (şema versiyon bağımsız).
+    """
+    # ── Adım 1: Gerçek kolon adlarını DB'den oku ────────────────────────────────
+    try:
+        col_rows = (await db.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name   = 'denetim_izleri'
+            ORDER BY ordinal_position
+        """))).fetchall()
+        actual_cols = {r[0] for r in col_rows}
+    except Exception as e:
+        print(f"[audit-logs] SCHEMA DISCOVERY ERROR: {e}")
+        actual_cols = set()
+
+    print(f"[audit-logs] denetim_izleri columns: {sorted(actual_cols)}")
+
+    # ── Adım 2: Kolon adlarını tespit et (iki olası şema versiyonu) ─────────────
+    # Şema A (eski model): islem_yapan_id, eylem, hedef_tablo, hedef_id, eski_veri, yeni_veri, created_at
+    # Şema B (yeni şema) : user_id,        aksiyon, tablo_adi, kayit_id, eski_deger, yeni_deger, tarih
+    if "user_id" in actual_cols:
+        C_USER   = "user_id"
+        C_EYLEM  = "aksiyon"
+        C_TABLO  = "tablo_adi"
+        C_KID    = "kayit_id"
+        C_ESKI   = "eski_deger"
+        C_YENI   = "yeni_deger"
+        C_TARIH  = "tarih"
+    elif "islem_yapan_id" in actual_cols:
+        C_USER   = "islem_yapan_id"
+        C_EYLEM  = "eylem"
+        C_TABLO  = "hedef_tablo"
+        C_KID    = "hedef_id"
+        C_ESKI   = "eski_veri"
+        C_YENI   = "yeni_veri"
+        C_TARIH  = "created_at"
+    else:
+        # Tablo yok ya da tamamen farklı — boş dön, gerçek kolon listesini logla
+        print(f"[audit-logs] UNKNOWN SCHEMA — actual cols: {sorted(actual_cols)}")
+        return {"data": [], "total": 0, "page": page, "page_size": page_size,
+                "_debug_cols": sorted(actual_cols)}
+
+    # ── Adım 3: Override / tarih filtreleri ─────────────────────────────────────
+    aksiyon_filter_sql = ""
+    if only_overrides:
+        aksiyon_filter_sql = f"AND di.{C_EYLEM}::text IN ('override','xp_correction')"
+
+    # asyncpg tip kuralı: tarih parametreleri Python datetime.date nesnesi olmalı.
+    # "date + INTERVAL" SQL ifadesi asyncpg'de tip belirsizliği yaratır →
+    # to_date'e +1 gün Python'da eklenir, sorguya saf datetime.date geçilir.
+    params: dict = {"lim": page_size, "off": (page - 1) * page_size}
+    if from_date or to_date:
+        date_parts = []
+        if from_date:
+            date_parts.append(f"di.{C_TARIH} >= :from_date")
+            params["from_date"] = date_type.fromisoformat(from_date)
+        if to_date:
+            # bitiş günü dahil: to_date < (to_date + 1 gün)
+            date_parts.append(f"di.{C_TARIH} < :to_date")
+            params["to_date"] = date_type.fromisoformat(to_date) + timedelta(days=1)
+        date_sql = "AND " + " AND ".join(date_parts)
+    else:
+        date_sql = f"AND di.{C_TARIH} >= CURRENT_DATE - INTERVAL '7 days'"
+
+    base_sql = f"""
+        FROM denetim_izleri di
+        JOIN kullanicilar  u ON u.id = CAST(di.{C_USER} AS uuid)
+        JOIN roller        r ON r.id = u.rol_id
+        WHERE LOWER(r.ad) IN ('supervisor', 'admin')
+          {date_sql}
+          {aksiyon_filter_sql}
+    """
+
+    # ── Adım 4: Sorguları çalıştır ──────────────────────────────────────────────
+    try:
+        total_row = (await db.execute(
+            text(f"SELECT COUNT(*) {base_sql}"), params
+        )).scalar() or 0
+    except Exception as e:
+        print(f"[audit-logs] COUNT ERROR: {e}")
+        print(f"[audit-logs] COUNT SQL: SELECT COUNT(*) {base_sql}")
+        raise HTTPException(status_code=500, detail=f"Audit log sayım hatası: {str(e)}")
+
+    try:
+        rows = (await db.execute(text(f"""
+            SELECT
+                di.{C_USER}::text  AS yapan_id,
+                di.{C_EYLEM}::text AS aksiyon,
+                di.{C_TABLO}       AS tablo_adi,
+                di.{C_KID}         AS kayit_id,
+                di.{C_ESKI}        AS eski_deger,
+                di.{C_YENI}        AS yeni_deger,
+                di.{C_TARIH}       AS tarih,
+                u.id::text         AS user_id,
+                u.ad_soyad         AS user_ad,
+                r.ad               AS user_rol
+            {base_sql}
+            ORDER BY di.{C_TARIH} DESC
+            LIMIT :lim OFFSET :off
+        """), params)).fetchall()
+    except Exception as e:
+        print(f"[audit-logs] SELECT ERROR: {e}")
+        raise HTTPException(status_code=500, detail=f"Audit log sorgu hatası: {str(e)}")
+
+    data = [
+        {
+            "id":         r.yapan_id,
+            "aksiyon":    r.aksiyon,
+            "tablo_adi":  r.tablo_adi,
+            "kayit_id":   r.kayit_id,
+            "eski_deger": r.eski_deger,
+            "yeni_deger": r.yeni_deger,
+            "tarih":      r.tarih.isoformat() if r.tarih else None,
+            "user_id":    r.user_id,
+            "user_ad":    r.user_ad,
+            "user_rol":   r.user_rol,
+        }
+        for r in rows
+    ]
+    return {"data": data, "total": int(total_row), "page": page, "page_size": page_size}
+
+
+@router.get("/debug-schema")
+async def debug_schema(
     db: AsyncSession = Depends(get_async_db),
     _:  User = Depends(ADMIN),
 ):
     """
-    Supervizör eylemleri (mola onayı, XP düzeltme, override).
-    only_overrides=true ise sadece override/xp_correction filtresi.
+    Geliştirme aracı — denetim_izleri tablosunun gerçek kolon adlarını döndürür.
+    Üretimde bu endpoint'i kaldırın.
     """
-    # Gerçek denetim_izleri kolonları: islem_yapan_id, eylem, hedef_tablo,
-    # hedef_id, eski_veri, yeni_veri, created_at
-    aksiyon_filter_sql = ""
-    if only_overrides:
-        aksiyon_filter_sql = "AND di.eylem IN ('override','xp_correction')"
-
-    rows = (await db.execute(text(f"""
-        SELECT
-            di.islem_yapan_id::text                        AS yapan_id,
-            di.eylem                                       AS aksiyon,
-            di.hedef_tablo                                 AS tablo_adi,
-            di.hedef_id                                    AS kayit_id,
-            di.eski_veri                                   AS eski_deger,
-            di.yeni_veri                                   AS yeni_deger,
-            di.created_at                                  AS tarih,
-            u.id::text                                     AS user_id,
-            u.ad_soyad                                     AS user_ad,
-            r.ad                                           AS user_rol
-        FROM denetim_izleri di
-        JOIN kullanicilar  u ON u.id = di.islem_yapan_id
-        JOIN roller        r ON r.id = u.rol_id
-        WHERE LOWER(r.ad) = 'supervisor'
-          AND di.created_at >= CURRENT_DATE - INTERVAL '7 days'
-          {aksiyon_filter_sql}
-        ORDER BY di.created_at DESC
-        LIMIT :lim
-    """), {"lim": limit})).fetchall()
-
-    return [
-        {
-            "id":          r.yapan_id,
-            "aksiyon":     r.aksiyon,
-            "tablo_adi":   r.tablo_adi,
-            "kayit_id":    r.kayit_id,
-            "eski_deger":  r.eski_deger,
-            "yeni_deger":  r.yeni_deger,
-            "tarih":       r.tarih.isoformat() if r.tarih else None,
-            "user_id":     r.user_id,
-            "user_ad":     r.user_ad,
-            "user_rol":    r.user_rol,
-        }
-        for r in rows
-    ]
+    rows = (await db.execute(text("""
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name   = 'denetim_izleri'
+        ORDER BY ordinal_position
+    """))).fetchall()
+    return {
+        "table": "denetim_izleri",
+        "columns": [
+            {"name": r[0], "type": r[1], "nullable": r[2]}
+            for r in rows
+        ],
+    }
 
 
 # ═══════════════════════════ 6. POST · TALİMAT GÖNDER ════════════════════════

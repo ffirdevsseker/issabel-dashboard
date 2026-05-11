@@ -29,11 +29,12 @@ import { headerApi } from "@/services/api";
 import logoCompact from "@/assets/logo2.png";
 
 const ADMIN_NAV = [
-  { label: "Genel Bakış",        to: "/admin",                icon: LayoutDashboard },
-  { label: "Personel",           to: "/admin/personnel",      icon: Users           },
-  { label: "Canlı Operasyon",    to: "/admin/operations",     icon: Radio           },
-  { label: "Otomasyon & Kurallar", to: "/admin/automation",   icon: Settings2       },
-  { label: "Sistem Sağlığı",     to: "/admin/system-health",  icon: BrainCircuit    },
+  { label: "Genel Bakış",          to: "/admin",               icon: LayoutDashboard },
+  { label: "Personel",             to: "/admin/personnel",     icon: Users           },
+  { label: "Canlı Operasyon",      to: "/admin/operations",    icon: Radio           },
+  { label: "Otomasyon & Kurallar", to: "/admin/automation",    icon: Settings2       },
+  { label: "Sistem Sağlığı",       to: "/admin/system-health", icon: BrainCircuit    },
+  { label: "Raporlar",             to: "/admin/reports",       icon: BarChart3       },
 ];
 
 // Sağlık renkleri

@@ -89,6 +89,16 @@ export const personnelApi = {
   // Override aksiyonları (audit log zorunlu)
   endBreakOverride: (body) => api.post("/admin/personnel/override/end-break", body),
   manualXp:         (body) => api.post("/admin/personnel/override/manual-xp", body),
+
+  // Kullanıcı yönetimi
+  create:         (data)     => api.post("/admin/personnel", data),
+  update:         (id, data) => api.patch(`/admin/personnel/${id}`, data),
+  resetPassword:  (id, data) => api.patch(`/admin/personnel/${id}/reset-password`, data),
+  lock:           (id, data) => api.patch(`/admin/personnel/${id}/lock`, data),
+  softDelete:     (id)       => api.delete(`/admin/personnel/${id}`),
+
+  // Haftalık devam panosu
+  getAttendance:  (weekOffset = 0) => api.get("/admin/personnel/attendance", { params: { week_offset: weekOffset } }),
 };
 
 export const dashboardApi = {

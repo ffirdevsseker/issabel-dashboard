@@ -9,10 +9,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, BarChart3, Clock, Cpu,
-  Download, Phone, RefreshCw, Server, Shield,
+  Activity, AlertTriangle, BarChart3, ChevronLeft, ChevronRight,
+  Clock, Cpu, Download, Phone, RefreshCw, Server, Shield,
   TrendingDown, TrendingUp, CheckCircle2,
 } from "lucide-react";
+import DateRangePicker from "@/components/admin/DateRangePicker";
 import {
   Area, AreaChart, CartesianGrid, Legend,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -200,29 +201,60 @@ function ChartTooltip({ active, payload, label }) {
 /* ════════════════════════════════════════════════════════════════════════════
    ANA SAYFA
 ════════════════════════════════════════════════════════════════════════════ */
+/* ─── Default tarih aralığı: son 7 gün ─────────────────────────────────────── */
+function defaultDateRange() {
+  const to   = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - 6);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  return { from: fmt(from), to: fmt(to) };
+}
+
+const AUDIT_PAGE_SIZE = 20;
+
 export default function AdminReports() {
-  const [command,   setCommand]   = useState(null);
-  const [hourly,    setHourly]    = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [spinning,  setSpinning]  = useState(false);
-  const [lastSync,  setLastSync]  = useState(null);
+  const [command,    setCommand]    = useState(null);
+  const [hourly,     setHourly]     = useState([]);
+  const [auditLogs,  setAuditLogs]  = useState([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditPage,  setAuditPage]  = useState(1);
+  const [dateRange,  setDateRange]  = useState(defaultDateRange);
+  const [loading,    setLoading]    = useState(true);
+  const [spinning,   setSpinning]   = useState(false);
+  const [lastSync,   setLastSync]   = useState(null);
   const timerRef = useRef(null);
+
+  const fetchAudit = useCallback(async (page = 1) => {
+    try {
+      const res = await operationsApi.getAuditLogs({
+        from_date: dateRange.from,
+        to_date:   dateRange.to,
+        page,
+        page_size: AUDIT_PAGE_SIZE,
+      });
+      const body = res.data;
+      setAuditLogs(Array.isArray(body) ? body : (body.data ?? []));
+      setAuditTotal(body.total ?? (Array.isArray(body) ? body.length : 0));
+      setAuditPage(page);
+    } catch { /* sessiz */ }
+  }, [dateRange]);
 
   const fetchAll = useCallback(async (manual = false) => {
     if (manual) setSpinning(true);
-    const [cmdRes, hourRes, auditRes] = await Promise.allSettled([
+    const [cmdRes, hourRes] = await Promise.allSettled([
       overviewApi.getCommand(),
       overviewApi.getHourly(),
-      operationsApi.getAuditLogs({ limit: 100 }),
     ]);
-    if (cmdRes.status   === "fulfilled") setCommand(cmdRes.value.data);
-    if (hourRes.status  === "fulfilled") setHourly(hourRes.value.data  ?? []);
-    if (auditRes.status === "fulfilled") setAuditLogs(auditRes.value.data ?? []);
+    if (cmdRes.status  === "fulfilled") setCommand(cmdRes.value.data);
+    if (hourRes.status === "fulfilled") setHourly(hourRes.value.data ?? []);
+    await fetchAudit(1);
     setLastSync(new Date());
     setLoading(false);
     if (manual) setSpinning(false);
-  }, []);
+  }, [fetchAudit]);
+
+  // Tarih aralığı değişince audit'i yenile
+  useEffect(() => { fetchAudit(1); }, [fetchAudit]);
 
   useEffect(() => {
     fetchAll();
@@ -336,9 +368,16 @@ export default function AdminReports() {
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+            {/* Tarih aralığı filtresi */}
+            <DateRangePicker
+              value={dateRange}
+              onChange={(v) => { setDateRange(v); setAuditPage(1); }}
+              disabled={loading}
+            />
+
             {lastSync && (
-              <span style={{ color: C.muted, fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ color: C.muted, fontSize: 11, display: "flex", alignItems: "center", gap: 4, paddingBottom: 8 }}>
                 <Clock size={11} />
                 {lastSync.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </span>
@@ -350,7 +389,7 @@ export default function AdminReports() {
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "8px 14px", borderRadius: 10,
                 border: `1px solid ${C.border}`,
-                background: "#ffffff",
+                background: "#ffffff", marginBottom: 0,
                 color: C.text, fontSize: 12, fontWeight: 700,
                 cursor: spinning ? "not-allowed" : "pointer",
                 opacity: spinning ? 0.6 : 1,
@@ -432,8 +471,8 @@ export default function AdminReports() {
           {loading || hourly.length === 0 ? (
             <Shimmer h={220} />
           ) : (
-            <div style={{ width: "100%", height: 230 }}>
-              <ResponsiveContainer width="100%" height="100%">
+            <div style={{ width: "100%", height: 230, minHeight: 230, overflow: "hidden" }}>
+              <ResponsiveContainer width="100%" height={230}>
                 <AreaChart data={hourly} margin={{ top: 6, right: 6, left: -22, bottom: 0 }}>
                   <defs>
                     <linearGradient id="rp_toplam" x1="0" y1="0" x2="0" y2="1">
@@ -488,9 +527,9 @@ export default function AdminReports() {
 
         {/* ── DENETİM LOG TABLOSU ───────────────────────────────────────────── */}
         <Panel
-          title="Supervisor Denetim Logları (Son 7 Gün)"
+          title={`Denetim Logları  ·  ${dateRange.from}  →  ${dateRange.to}`}
           accentColor={C.purple}
-          badge={auditLogs.length > 0 ? `${auditLogs.length} kayıt` : null}
+          badge={auditTotal > 0 ? `${auditTotal} kayıt` : null}
           noPad
         >
           {loading ? (
@@ -505,7 +544,8 @@ export default function AdminReports() {
               Son 7 günde denetim logu bulunamadı.
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <>
+            <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: 480 }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr>
@@ -631,6 +671,67 @@ export default function AdminReports() {
                 </tbody>
               </table>
             </div>
+
+            {/* Sayfalama */}
+            {auditTotal > AUDIT_PAGE_SIZE && (() => {
+              const totalPages = Math.ceil(auditTotal / AUDIT_PAGE_SIZE);
+              return (
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 16px", borderTop: `1px solid ${C.borderL}`,
+                  background: "#f8fafc",
+                }}>
+                  <span style={{ fontSize: 11, color: C.muted }}>
+                    <strong style={{ color: C.text }}>{auditTotal}</strong> kayıt · Sayfa{" "}
+                    <strong style={{ color: C.text }}>{auditPage}</strong> / {totalPages}
+                  </span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      disabled={auditPage === 1}
+                      onClick={() => fetchAudit(auditPage - 1)}
+                      style={{
+                        width: 30, height: 30, borderRadius: 8,
+                        border: `1px solid ${C.border}`, background: "#fff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: auditPage === 1 ? "not-allowed" : "pointer",
+                        opacity: auditPage === 1 ? 0.3 : 1,
+                      }}
+                    >
+                      <ChevronLeft size={14} color={C.text} />
+                    </button>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pg = auditPage <= 3 ? i + 1 : auditPage - 2 + i;
+                      if (pg < 1 || pg > totalPages) return null;
+                      return (
+                        <button key={pg} onClick={() => fetchAudit(pg)} style={{
+                          width: 30, height: 30, borderRadius: 8,
+                          border: `1px solid ${pg === auditPage ? C.purple : C.border}`,
+                          background: pg === auditPage ? C.purple : "#fff",
+                          color: pg === auditPage ? "#fff" : C.text,
+                          fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        }}>
+                          {pg}
+                        </button>
+                      );
+                    })}
+                    <button
+                      disabled={auditPage === totalPages}
+                      onClick={() => fetchAudit(auditPage + 1)}
+                      style={{
+                        width: 30, height: 30, borderRadius: 8,
+                        border: `1px solid ${C.border}`, background: "#fff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: auditPage === totalPages ? "not-allowed" : "pointer",
+                        opacity: auditPage === totalPages ? 0.3 : 1,
+                      }}
+                    >
+                      <ChevronRight size={14} color={C.text} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+            </>
           )}
         </Panel>
 

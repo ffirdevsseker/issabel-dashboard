@@ -22,23 +22,10 @@ import {
 import { personnelApi, operationsApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 import { Panel } from "@/pages/admin/Overview";
+import { ADMIN_THEME } from "@/constants/adminTheme";
 
-/* ─── Tema (Genel Bakış ile birebir) ────────────────────────────────────────── */
-const C = {
-  text:    "#0f172a",
-  muted:   "#94a3b8",
-  faint:   "#cbd5e1",
-  border:  "rgba(0,0,0,0.07)",
-  borderL: "rgba(0,0,0,0.05)",
-  hover:   "rgba(0,0,0,0.02)",
-
-  active:  "#10b981",
-  busy:    "#3b82f6",
-  break:   "#f59e0b",
-  offline: "#94a3b8",
-  alarm:   "#ef4444",
-  purple:  "#8b5cf6",
-};
+/* ─── Tema ───────────────────────────────────────────────────────────────────── */
+const C = ADMIN_THEME;
 
 const DURUM = {
   aktif:   { color: C.active,  bg: "rgba(16,185,129,0.08)",  label: "Aktif"     },

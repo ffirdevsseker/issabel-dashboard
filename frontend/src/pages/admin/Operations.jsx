@@ -31,9 +31,10 @@ import {
   X,
 } from "lucide-react";
 
-import { warRoomApi } from "@/services/api";
+import { warRoomApi, operationsApi } from "@/services/api";
 import { useAuth }    from "@/context/AuthContext";
 import { Panel }      from "@/pages/admin/Overview";
+import { ADMIN_THEME } from "@/constants/adminTheme";
 
 const POLL_MS = 5_000;
 
@@ -800,20 +801,228 @@ function InstructionModal({ target, text, onChange, onSend, onClose, sending }) 
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
+   F. KPI ÖZET ŞERİDİ  (GET /admin/operations/summary)
+════════════════════════════════════════════════════════════════════════════ */
+const T = ADMIN_THEME;
+
+function SummaryStrip({ data, loading }) {
+  if (loading) {
+    return (
+      <div style={{
+        display: "flex", gap: 8, flexWrap: "wrap",
+        padding: "10px 0", marginBottom: 4,
+      }}>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} style={{
+            flex: "1 1 120px", height: 64, borderRadius: 12,
+            background: "linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)",
+            backgroundSize: "200% 100%", animation: "opShim 1.4s infinite",
+          }} />
+        ))}
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const { kapasite, abandon, verimlilik, csat } = data;
+  const abandonKritik = abandon?.kritik;
+
+  const chips = [
+    {
+      label:   "Toplam Çağrı",
+      value:   abandon?.bugun_toplam ?? "—",
+      color:   T.busy,
+    },
+    {
+      label:   "Aktif Görüşme",
+      value:   kapasite?.aktif_cagri != null
+        ? `${kapasite.aktif_cagri} / ${kapasite.max_kapasite}`
+        : "—",
+      sub:     kapasite?.yuzde != null ? `%${kapasite.yuzde} kapasite` : null,
+      color:   T.active,
+    },
+    {
+      label:   "Kaçan Çağrı",
+      value:   abandon?.bugun_kacan ?? "—",
+      sub:     abandon?.yuzde != null ? `%${abandon.yuzde} abandon` : null,
+      color:   abandonKritik ? T.alarm : T.break,
+    },
+    {
+      label:   "XP / Çağrı",
+      value:   verimlilik?.xp_per_cagri != null
+        ? verimlilik.xp_per_cagri.toFixed(1)
+        : "—",
+      sub:     verimlilik?.toplam_xp_bugun != null
+        ? `${verimlilik.toplam_xp_bugun} XP bugün`
+        : null,
+      color:   T.purple,
+    },
+    {
+      label:   "CSAT Ortalaması",
+      value:   csat?.bugun_ortalama ? csat.bugun_ortalama.toFixed(1) : "—",
+      sub:     "5 üzerinden",
+      color:   (csat?.bugun_ortalama ?? 0) >= 4 ? T.active
+             : (csat?.bugun_ortalama ?? 0) >= 3 ? T.break
+             : T.alarm,
+    },
+  ];
+
+  return (
+    <>
+      <style>{`
+        @keyframes opShim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+      `}</style>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+        {chips.map(({ label, value, sub, color }) => (
+          <div key={label} style={{
+            flex: "1 1 120px", minWidth: 110,
+            background: "#ffffff",
+            border: `1px solid ${color}20`,
+            borderTop: `3px solid ${color}`,
+            borderRadius: 12,
+            padding: "10px 14px",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+          }}>
+            <div style={{
+              fontSize: 18, fontWeight: 800, color,
+              lineHeight: 1.1, fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.02em",
+            }}>
+              {value}
+            </div>
+            {sub && (
+              <div style={{ fontSize: 10, color: T.muted, marginTop: 1 }}>{sub}</div>
+            )}
+            <div style={{
+              fontSize: 10, fontWeight: 700, color: T.muted,
+              letterSpacing: "0.05em", textTransform: "uppercase", marginTop: 4,
+            }}>
+              {label}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   G. EKİP KARŞILAŞTIRMA PANELİ  (GET /admin/operations/team-comparison)
+════════════════════════════════════════════════════════════════════════════ */
+function TeamCompPanel({ teams }) {
+  if (!teams?.length) return null;
+
+  const maxCagri = Math.max(...teams.map(t => t.bugun_cagri), 1);
+
+  return (
+    <Panel title="Ekip Karşılaştırması — Bugün" accentColor={T.busy} badge={`${teams.length} ekip`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {teams.map((team) => {
+          const cevapOrani = team.bugun_cagri > 0
+            ? Math.round((team.bugun_cevaplanan / team.bugun_cagri) * 100)
+            : 0;
+          const barPct = Math.round((team.bugun_cagri / maxCagri) * 100);
+
+          return (
+            <div key={team.ekip_id} style={{
+              background: "#f8fafc",
+              border: "1px solid rgba(0,0,0,0.06)",
+              borderRadius: 10, padding: "12px 16px",
+            }}>
+              {/* Ekip başlığı */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{team.ekip_ad}</span>
+                  {team.supervisor_ad && (
+                    <span style={{ fontSize: 10, color: T.muted, marginLeft: 8 }}>
+                      Süpervizör: {team.supervisor_ad}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 800,
+                    color: cevapOrani >= 80 ? T.active : cevapOrani >= 60 ? T.break : T.alarm,
+                    background: cevapOrani >= 80 ? `${T.active}12` : cevapOrani >= 60 ? `${T.break}12` : `${T.alarm}12`,
+                    border: `1px solid ${cevapOrani >= 80 ? T.active : cevapOrani >= 60 ? T.break : T.alarm}25`,
+                    padding: "2px 8px", borderRadius: 99,
+                  }}>
+                    %{cevapOrani} cevap
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: T.muted,
+                    background: "rgba(0,0,0,0.04)", padding: "2px 7px", borderRadius: 99,
+                  }}>
+                    {team.personel_sayisi} personel
+                  </span>
+                </div>
+              </div>
+
+              {/* Bar */}
+              <div style={{
+                height: 6, background: "rgba(0,0,0,0.06)",
+                borderRadius: 999, overflow: "hidden", marginBottom: 8,
+              }}>
+                <div style={{
+                  height: "100%", width: `${barPct}%`,
+                  background: `linear-gradient(90deg, ${T.busy}, ${T.purple})`,
+                  borderRadius: 999, transition: "width 0.6s ease",
+                }} />
+              </div>
+
+              {/* Metrik chiplerI */}
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {[
+                  { label: "Toplam",     value: team.bugun_cagri,      color: T.busy   },
+                  { label: "Cevaplanan", value: team.bugun_cevaplanan,  color: T.active },
+                  { label: "Kaçan",      value: team.bugun_kacan,       color: T.alarm  },
+                  { label: "CSAT",       value: team.ortalama_csat ? team.ortalama_csat.toFixed(1) : "—", color: T.break },
+                  { label: "XP",         value: team.toplam_xp?.toLocaleString("tr-TR"), color: T.purple },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ textAlign: "center" }}>
+                    <div style={{
+                      fontSize: 14, fontWeight: 800, color,
+                      fontVariantNumeric: "tabular-nums",
+                    }}>
+                      {value ?? "—"}
+                    </div>
+                    <div style={{
+                      fontSize: 9, fontWeight: 700, color: T.muted,
+                      textTransform: "uppercase", letterSpacing: "0.05em",
+                    }}>
+                      {label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Panel>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
    ANA SAYFA
 ════════════════════════════════════════════════════════════════════════════ */
 export default function Operations() {
   const { user } = useAuth();
   const isAdmin  = user?.role === "admin";
 
-  const [calls,      setCalls]      = useState([]);
-  const [queues,     setQueues]     = useState([]);
-  const [staff,      setStaff]      = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [nowMs,      setNowMs]      = useState(Date.now());
-  const [clockStr,   setClockStr]   = useState(nowHMS());
-  const [toast,      setToast]      = useState(null);
+  const [calls,         setCalls]         = useState([]);
+  const [queues,        setQueues]        = useState([]);
+  const [staff,         setStaff]         = useState([]);
+  const [summary,       setSummary]       = useState(null);
+  const [summaryLoading,setSummaryLoading]= useState(true);
+  const [teamComp,      setTeamComp]      = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [nowMs,         setNowMs]         = useState(Date.now());
+  const [clockStr,      setClockStr]      = useState(nowHMS());
+  const [toast,         setToast]         = useState(null);
 
   /* Talimat modal state */
   const [instrModal,   setInstrModal]   = useState(null);   // { userId, adSoyad }
@@ -833,6 +1042,8 @@ export default function Operations() {
       warRoomApi.getActiveCalls(),
       warRoomApi.getQueues(),
       warRoomApi.getStaff(),
+      operationsApi.getSummary(),
+      operationsApi.getTeamComparison(),
     ]);
     const get = (i) =>
       results[i]?.status === "fulfilled" ? results[i].value.data : null;
@@ -840,6 +1051,9 @@ export default function Operations() {
     if (get(0) !== null) setCalls(get(0));
     if (get(1) !== null) setQueues(get(1));
     if (get(2) !== null) setStaff(get(2));
+    if (get(3) !== null) setSummary(get(3));
+    if (get(4) !== null) setTeamComp(Array.isArray(get(4)) ? get(4) : []);
+    setSummaryLoading(false);
     setLoading(false);
     if (manual) setRefreshing(false);
   }, []);
@@ -1045,6 +1259,9 @@ export default function Operations() {
         </div>
       </div>
 
+      {/* ── KPI ŞERİDİ ──────────────────────────────────────────────────── */}
+      <SummaryStrip data={summary} loading={summaryLoading} />
+
       {/* ── ANA GRID ────────────────────────────────────────────────────── */}
       <div
         className="wr-main-grid"
@@ -1081,6 +1298,13 @@ export default function Operations() {
           />
         </div>
       </div>
+
+      {/* ── EKİP KARŞILAŞTIRMA ───────────────────────────────────────────── */}
+      {teamComp.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <TeamCompPanel teams={teamComp} />
+        </div>
+      )}
 
       {/* ── ALERT TICKER ────────────────────────────────────────────────── */}
       <AlertTicker staff={staff} queues={queues} calls={calls} nowMs={nowMs} />

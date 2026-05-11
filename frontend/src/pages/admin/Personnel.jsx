@@ -17,49 +17,21 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { clsx }      from "clsx";
-import { twMerge }   from "tailwind-merge";
 import {
   Search, RefreshCw, Plus, Users, Headphones, Coffee, PowerOff,
   AlertTriangle, MoreVertical, ExternalLink, KeyRound, Lock, UserMinus,
   Edit2, X, ChevronDown, ChevronLeft, ChevronRight,
   Shield, UserCheck, Clock, XCircle, Info, WifiOff, CheckCircle2,
 } from "lucide-react";
-import { personnelApi, staffApi } from "@/services/api";
+import { personnelApi } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { ADMIN_THEME } from "@/constants/adminTheme";
 
 /* ── Utility ──────────────────────────────────────────────────────────────── */
-const cn = (...a) => twMerge(clsx(a));
+const C = ADMIN_THEME;
 const PER_PAGE = 25;
 const TEAMS  = ["A Ekibi", "B Ekibi", "Şikayet Ekibi", "VIP Ekibi"];
 const QUEUES = ["Genel Destek", "Şikayet Hattı", "VIP Destek", "Teknik Destek"];
-
-/* ══════════════════════════════ Mock Veriler ═════════════════════════════════
-   API yanıt vermediğinde fallback; gerçek ortamda personnelApi.getList sonucu
-   aynı sütun isimlerini döner.
-═══════════════════════════════════════════════════════════════════════════════ */
-const MOCK_PERSONS = [
-  { id:"1", ad_soyad:"Ayşe Erdoğan",  kullanici_adi:"ayse.erdogan",  dahili_no:"101", rol:"supervisor", ekip:"A Ekibi",       departman:"Müşteri Hizmetleri", anlik_durum:"mola",    mola_asimi_dk:15, bugun_cagri:23, xp:2450, seviye:4, unvan:"Uzman",   sip_durumu:"normal", _c:"#6366f1" },
-  { id:"2", ad_soyad:"Emre Koç",      kullanici_adi:"emre.koc",      dahili_no:"102", rol:"agent",      ekip:"A Ekibi",       departman:"Müşteri Hizmetleri", anlik_durum:"aktif",   mola_asimi_dk:0,  bugun_cagri:31, xp:1820, seviye:3, unvan:"Kıdemli", sip_durumu:"normal", _c:"#10b981" },
-  { id:"3", ad_soyad:"Zeynep Arslan", kullanici_adi:"zeynep.arslan", dahili_no:"103", rol:"agent",      ekip:"Şikayet Ekibi", departman:"Müşteri Hizmetleri", anlik_durum:"mesgul",  mola_asimi_dk:0,  bugun_cagri:18, xp:980,  seviye:2, unvan:null,      sip_durumu:"normal", _c:"#f59e0b" },
-  { id:"4", ad_soyad:"Murat Şahin",  kullanici_adi:"murat.sahin",   dahili_no:"104", rol:"supervisor", ekip:"Şikayet Ekibi", departman:"Müşteri Hizmetleri", anlik_durum:"aktif",   mola_asimi_dk:0,  bugun_cagri:9,  xp:3100, seviye:5, unvan:"Lider",   sip_durumu:"normal", _c:"#3b82f6" },
-  { id:"5", ad_soyad:"Fatma Yıldız", kullanici_adi:"fatma.yildiz",  dahili_no:"105", rol:"agent",      ekip:"B Ekibi",       departman:"Müşteri Hizmetleri", anlik_durum:"mola",    mola_asimi_dk:0,  bugun_cagri:24, xp:1450, seviye:3, unvan:"Kıdemli", sip_durumu:"normal", _c:"#ec4899" },
-  { id:"6", ad_soyad:"Can Demir",    kullanici_adi:"can.demir",     dahili_no:"106", rol:"agent",      ekip:"B Ekibi",       departman:"Müşteri Hizmetleri", anlik_durum:"offline",  mola_asimi_dk:0,  bugun_cagri:0,  xp:540,  seviye:1, unvan:null,      sip_durumu:"koptu",  _c:"#8b5cf6" },
-  { id:"7", ad_soyad:"Selin Kaya",   kullanici_adi:"selin.kaya",    dahili_no:"107", rol:"agent",      ekip:"A Ekibi",       departman:"Müşteri Hizmetleri", anlik_durum:"aktif",   mola_asimi_dk:0,  bugun_cagri:27, xp:2100, seviye:4, unvan:"Uzman",   sip_durumu:"normal", _c:"#06b6d4" },
-  { id:"8", ad_soyad:"Burak Aydın",  kullanici_adi:"burak.aydin",   dahili_no:"108", rol:"agent",      ekip:"Şikayet Ekibi", departman:"Müşteri Hizmetleri", anlik_durum:"aktif",   mola_asimi_dk:0,  bugun_cagri:20, xp:1250, seviye:2, unvan:null,      sip_durumu:"normal", _c:"#f97316" },
-];
-
-/* Haftalık devam verileri — 04 May (Pzt) → 10 May 2026 (Paz), bugün = Cum 08 */
-const ATTENDANCE = {
-  "1": [ { planned:"09:00-18:00", actual_in:"09:15", actual_out:"18:00", late:15, early:0,  bov:true,  brk:75 }, { planned:"09:00-18:00", actual_in:"08:58", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:02", actual_out:"17:45", late:0,  early:15, bov:false, brk:55 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:20", actual_out:"18:00", late:20, early:0,  bov:true,  brk:83 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "2": [ { planned:"08:00-17:00", actual_in:"08:22", actual_out:"17:00", late:22, early:0,  bov:false, brk:65 }, { planned:"08:00-17:00", actual_in:"08:00", actual_out:"17:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"08:00-17:00", actual_in:"08:05", actual_out:"17:00", late:0,  early:0,  bov:true,  brk:78 }, { planned:"08:00-17:00", actual_in:null,    actual_out:null,    late:0,  early:0,  bov:false, brk:0  }, { planned:"08:00-17:00", actual_in:"08:10", actual_out:"16:45", late:10, early:15, bov:false, brk:60 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "3": [ { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:30", actual_out:"18:00", late:30, early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"10:00-16:00", actual_in:"10:00", actual_out:"16:00", late:0,  early:0,  bov:false, brk:30 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "4": [ ...Array(5).fill(null).map(() => ({ planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0, early:0, bov:false, brk:60 })), { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "5": [ { planned:"10:00-19:00", actual_in:"10:00", actual_out:"19:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"10:00-19:00", actual_in:"10:12", actual_out:"19:00", late:12, early:0,  bov:false, brk:60 }, { planned:"10:00-19:00", actual_in:"10:00", actual_out:"19:00", late:0,  early:0,  bov:true,  brk:90 }, { planned:"10:00-19:00", actual_in:"10:00", actual_out:"18:30", late:0,  early:30, bov:false, brk:60 }, { planned:"10:00-19:00", actual_in:"10:00", actual_out:"19:00", late:0,  early:0,  bov:false, brk:60 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "6": [ { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0, early:0, bov:false, brk:60 }, ...Array(4).fill(null).map(() => ({ planned:"09:00-18:00", actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 })), { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "7": [ { planned:"09:00-18:00", actual_in:"09:05", actual_out:"18:00", late:5,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:false, brk:60 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"18:00", late:0,  early:0,  bov:true,  brk:72 }, { planned:"09:00-18:00", actual_in:"09:00", actual_out:"17:50", late:0,  early:10, bov:false, brk:60 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-  "8": [ ...Array(5).fill(null).map(() => ({ planned:"08:00-17:00", actual_in:"08:00", actual_out:"17:00", late:0, early:0, bov:false, brk:60 })), { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 }, { planned:null, actual_in:null, actual_out:null, late:0, early:0, bov:false, brk:0 } ],
-};
 
 const WEEK_DAYS = [
   { label:"Pzt", date:"04.05", today:false }, { label:"Sal", date:"05.05", today:false },
@@ -68,6 +40,16 @@ const WEEK_DAYS = [
   { label:"Paz", date:"10.05", today:false },
 ];
 
+/* ── Shared style objects ─────────────────────────────────────────────────── */
+const S = {
+  card: {
+    background: "#ffffff",
+    borderRadius: 12,
+    border: "1px solid #f1f5f9",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+  },
+};
+
 
 /* ══════════════════════════════ Atom Bileşenler ═════════════════════════════ */
 
@@ -75,8 +57,13 @@ function Avatar({ name, color, size = 34 }) {
   const initial = (name || "?").charAt(0).toUpperCase();
   return (
     <div
-      className="rounded-full flex items-center justify-center font-bold flex-shrink-0 select-none"
-      style={{ width: size, height: size, fontSize: size * 0.38, color, background: `${color}1a`, border: `1.5px solid ${color}30` }}
+      style={{
+        width: size, height: size, fontSize: size * 0.38, color,
+        background: `${color}1a`, border: `1.5px solid ${color}30`,
+        borderRadius: "50%", display: "flex", alignItems: "center",
+        justifyContent: "center", fontWeight: 700, flexShrink: 0,
+        userSelect: "none",
+      }}
     >
       {initial}
     </div>
@@ -84,30 +71,63 @@ function Avatar({ name, color, size = 34 }) {
 }
 
 function RoleBadge({ rol }) {
-  return rol === "supervisor"
-    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-600/15"><Shield size={9}/> Süpervizör</span>
-    : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/15"><UserCheck size={9}/> Personel</span>;
+  if (rol === "supervisor") {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 8px", borderRadius: "50%", fontSize: 10, fontWeight: 700,
+        background: "#eef2ff", color: "#4338ca",
+        boxShadow: "inset 0 0 0 1px rgba(99,102,241,0.15)",
+        borderRadius: 20,
+      }}>
+        <Shield size={9} /> Süpervizör
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+      background: "#ecfdf5", color: "#065f46",
+      boxShadow: "inset 0 0 0 1px rgba(16,185,129,0.15)",
+    }}>
+      <UserCheck size={9} /> Personel
+    </span>
+  );
 }
 
 function AnlikDurumBadge({ durum, mola_asimi_dk }) {
   if ((mola_asimi_dk || 0) > 0) {
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-600 ring-1 ring-inset ring-red-500/20">
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        padding: "2px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+        background: "rgba(239,68,68,0.08)", color: "#dc2626",
+        boxShadow: "inset 0 0 0 1px rgba(239,68,68,0.2)",
+      }}>
+        <span style={{
+          width: 6, height: 6, borderRadius: "50%", background: "#ef4444",
+          animation: "pulse 2s ease-in-out infinite",
+        }} />
         +{mola_asimi_dk}dk Aşım
       </span>
     );
   }
   const MAP = {
-    aktif:   { cls:"bg-emerald-50 text-emerald-700 ring-emerald-600/15", dot:"bg-emerald-500", label:"Aktif"      },
-    mesgul:  { cls:"bg-blue-50   text-blue-700    ring-blue-600/15",     dot:"bg-blue-500",    label:"Görüşmede"  },
-    mola:    { cls:"bg-amber-50  text-amber-700   ring-amber-600/15",    dot:"bg-amber-500",   label:"Molada"     },
-    offline: { cls:"bg-gray-50   text-gray-500    ring-gray-500/15",     dot:"bg-gray-400",    label:"Offline"    },
+    aktif:   { bg: "rgba(16,185,129,0.08)",  text: "#065f46", dot: "#10b981", label: "Aktif"      },
+    mesgul:  { bg: "rgba(59,130,246,0.08)",  text: "#1d4ed8", dot: "#3b82f6", label: "Görüşmede"  },
+    mola:    { bg: "rgba(245,158,11,0.08)",  text: "#b45309", dot: "#f59e0b", label: "Molada"     },
+    offline: { bg: "rgba(148,163,184,0.08)", text: "#64748b", dot: "#94a3b8", label: "Offline"    },
   };
   const m = MAP[durum] || MAP.offline;
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ring-1 ring-inset ${m.cls}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 10px", borderRadius: 20, fontSize: 10, fontWeight: 700,
+      background: m.bg, color: m.text,
+      boxShadow: `inset 0 0 0 1px ${m.dot}30`,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: m.dot }} />
       {m.label}
     </span>
   );
@@ -116,12 +136,23 @@ function AnlikDurumBadge({ durum, mola_asimi_dk }) {
 function XpBar({ xp = 0, seviye = 1 }) {
   const pct = Math.min(100, Math.round((xp % 500) / 500 * 100));
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[9px] font-extrabold text-violet-600 bg-violet-50 border border-violet-200/60 rounded px-1.5 py-0.5 whitespace-nowrap leading-none">
+    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{
+        fontSize: 9, fontWeight: 800, color: "#7c3aed",
+        background: "#f5f3ff", border: "1px solid rgba(139,92,246,0.3)",
+        borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap", lineHeight: 1,
+      }}>
         Lv {seviye}
       </span>
-      <div className="flex-1 h-[3px] bg-gray-100 rounded-full overflow-hidden min-w-[28px]">
-        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-400" style={{ width:`${pct}%` }} />
+      <div style={{
+        flex: 1, height: 3, background: "#f1f5f9", borderRadius: 4,
+        overflow: "hidden", minWidth: 28,
+      }}>
+        <div style={{
+          height: "100%", borderRadius: 4,
+          background: "linear-gradient(to right, #8b5cf6, #6366f1)",
+          width: `${pct}%`,
+        }} />
       </div>
     </div>
   );
@@ -129,13 +160,24 @@ function XpBar({ xp = 0, seviye = 1 }) {
 
 function SelectField({ label, value, onChange, options }) {
   return (
-    <div className="relative">
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="appearance-none w-full py-2 pl-3 pr-7 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 cursor-pointer">
+    <div style={{ position: "relative" }}>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          appearance: "none", width: "100%", padding: "8px 28px 8px 12px",
+          fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 8,
+          background: "#ffffff", color: "#374151",
+          outline: "none", cursor: "pointer",
+        }}
+      >
         <option value="">{label}</option>
         {options.map(o => <option key={o.v ?? o} value={o.v ?? o}>{o.l ?? o}</option>)}
       </select>
-      <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+      <ChevronDown size={11} style={{
+        position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+        color: "#94a3b8", pointerEvents: "none",
+      }} />
     </div>
   );
 }
@@ -160,7 +202,6 @@ function EditSlideOver({ person, filters, onClose, onSave }) {
       if (form.ekip_id   !== (person.ekip_id   || ""))          payload.ekip_id   = form.ekip_id   || null;
       if (form.dahili_no !== (person.dahili_no || ""))          payload.dahili_no = form.dahili_no || null;
 
-      // Hiçbir şey değişmemişse da `rol` + `ekip_id` gönder (backend zorunlu alan kontrolünü geçer)
       if (Object.keys(payload).length === 0) {
         setDone(true);
         setTimeout(() => { onSave({ ...person }); onClose(); }, 600);
@@ -179,54 +220,89 @@ function EditSlideOver({ person, filters, onClose, onSave }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/10 backdrop-blur-[2px] z-40" onClick={onClose} />
-      <div className="fixed right-0 top-0 h-full w-[400px] bg-white border-l border-gray-100 shadow-2xl z-50 flex flex-col">
+      <div
+        style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.10)",
+          backdropFilter: "blur(2px)", zIndex: 40,
+        }}
+        onClick={onClose}
+      />
+      <div style={{
+        position: "fixed", right: 0, top: 0, height: "100%", width: 400,
+        background: "#ffffff", borderLeft: "1px solid #f1f5f9",
+        boxShadow: "0 25px 50px rgba(0,0,0,0.15)", zIndex: 50,
+        display: "flex", flexDirection: "column",
+      }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "20px 24px", borderBottom: "1px solid #f1f5f9",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <Avatar name={person.ad_soyad} color={person._c || "#6366f1"} size={38} />
             <div>
-              <p className="text-sm font-bold text-gray-900">{person.ad_soyad}</p>
-              <p className="text-xs text-gray-400">@{person.kullanici_adi} · {person.dahili_no}</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{person.ad_soyad}</p>
+              <p style={{ fontSize: 11, color: "#94a3b8" }}>@{person.kullanici_adi} · {person.dahili_no}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+          <button
+            onClick={onClose}
+            style={{
+              padding: 6, borderRadius: 8, color: "#94a3b8", background: "none",
+              border: "none", cursor: "pointer",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#475569"; e.currentTarget.style.background = "#f1f5f9"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#94a3b8"; e.currentTarget.style.background = "none"; }}
+          >
             <X size={16} />
           </button>
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Yetki & Atama</p>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Yetki & Atama
+          </p>
 
           {err && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3">
-              <AlertTriangle size={13} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-[11px] text-red-700 font-semibold">{err}</p>
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: 8,
+              background: "#fef2f2", border: "1px solid #fca5a5",
+              borderRadius: 8, padding: 12,
+            }}>
+              <AlertTriangle size={13} style={{ color: "#ef4444", flexShrink: 0, marginTop: 2 }} />
+              <p style={{ fontSize: 11, color: "#b91c1c", fontWeight: 600 }}>{err}</p>
             </div>
           )}
 
           {/* Rol toggle */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Rol</label>
-            <div className="grid grid-cols-2 gap-2">
-              {[["supervisor","Süpervizör"],["personel","Personel"]].map(([r, label]) => (
-                <button key={r} onClick={() => setForm(f => ({...f, rol:r}))}
-                  className={cn("py-2.5 rounded-lg border text-sm font-semibold transition-all",
-                    form.rol === r
-                      ? r === "supervisor"
-                        ? "border-indigo-500 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-400"
-                        : "border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-400"
-                      : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                  )}>
-                  {label}
-                </button>
-              ))}
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}>Rol</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {[["supervisor","Süpervizör"],["personel","Personel"]].map(([r, label]) => {
+                const isActive = form.rol === r;
+                const activeStyle = r === "supervisor"
+                  ? { borderColor: "#6366f1", background: "#eef2ff", color: "#4338ca", boxShadow: "inset 0 0 0 1px #818cf8" }
+                  : { borderColor: "#10b981", background: "#ecfdf5", color: "#065f46", boxShadow: "inset 0 0 0 1px #34d399" };
+                return (
+                  <button key={r} onClick={() => setForm(f => ({...f, rol:r}))}
+                    style={{
+                      padding: "10px 0", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                      cursor: "pointer", transition: "all 0.15s",
+                      border: "1px solid",
+                      ...(isActive ? activeStyle : {
+                        borderColor: "#e2e8f0", background: "#ffffff", color: "#64748b",
+                      }),
+                    }}>
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Ekip</label>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Ekip</label>
             <SelectField
               label="Ekip seçin"
               value={form.ekip_id}
@@ -235,28 +311,57 @@ function EditSlideOver({ person, filters, onClose, onSave }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Dahili Numara</label>
-            <input value={form.dahili_no} onChange={e => setForm(f=>({...f,dahili_no:e.target.value}))}
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Dahili Numara</label>
+            <input
+              value={form.dahili_no}
+              onChange={e => setForm(f=>({...f,dahili_no:e.target.value}))}
               placeholder="Örn: 109"
-              className="w-full py-2 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 font-mono" />
+              style={{
+                width: "100%", padding: "8px 12px", fontSize: 13,
+                border: "1px solid #e2e8f0", borderRadius: 8,
+                fontFamily: "monospace", outline: "none", boxSizing: "border-box",
+              }}
+            />
           </div>
 
-          <div className="flex gap-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
-            <Info size={13} className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-amber-700">Rol değişikliği sonraki oturumda geçerli olur. Aktif çağrı etkilenmez.</p>
+          <div style={{
+            display: "flex", gap: 8, background: "#fffbeb",
+            border: "1px solid #fef3c7", borderRadius: 8, padding: 12,
+          }}>
+            <Info size={13} style={{ color: "#f59e0b", flexShrink: 0, marginTop: 2 }} />
+            <p style={{ fontSize: 11, color: "#b45309" }}>Rol değişikliği sonraki oturumda geçerli olur. Aktif çağrı etkilenmez.</p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3">
-          <button onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+        <div style={{
+          padding: "16px 24px", borderTop: "1px solid #f1f5f9",
+          display: "flex", gap: 12,
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: "10px 0", fontSize: 13, fontWeight: 600,
+              color: "#475569", border: "1px solid #e2e8f0", borderRadius: 8,
+              background: "#ffffff", cursor: "pointer",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+            onMouseLeave={e => e.currentTarget.style.background = "#ffffff"}
+          >
             İptal
           </button>
-          <button onClick={handleSave} disabled={saving}
-            className={cn("flex-1 py-2.5 text-sm font-bold rounded-lg transition-all",
-              done ? "bg-emerald-500 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95",
-              saving && "opacity-70 cursor-not-allowed"
-            )}>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              flex: 1, padding: "10px 0", fontSize: 13, fontWeight: 700,
+              borderRadius: 8, border: "none", cursor: saving ? "not-allowed" : "pointer",
+              transition: "all 0.15s",
+              background: done ? "#10b981" : "#6366f1",
+              color: "#ffffff",
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
             {done ? "✓ Kaydedildi" : saving ? "Kaydediliyor…" : "Kaydet"}
           </button>
         </div>
@@ -553,42 +658,79 @@ function ThreeDotsMenu({ person, isAdmin, onEdit, onDetail, onSifreSifirla, onKi
     return () => document.removeEventListener("mousedown", fn);
   }, []);
 
+  const menuItems = [
+    { label:"Detaya Git",    Icon:ExternalLink, color:"#2563eb",  fn: onDetail },
+    { label:"Düzenle",       Icon:Edit2,        color:"#374151",  fn: onEdit   },
+    { label:"Şifre Sıfırla", Icon:KeyRound,     color:"#d97706", fn: () => { onSifreSifirla(person); setOpen(false); } },
+    {
+      label: person.kilitli ? "Kilidi Aç" : "Hesabı Kilitle",
+      Icon: Lock,
+      color: person.kilitli ? "#059669" : "#64748b",
+      fn: () => { onKilitle(person); setOpen(false); }
+    },
+  ];
+
   return (
-    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
-      <button onClick={() => setOpen(o => !o)}
-        className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
+    <div ref={ref} style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          padding: 6, borderRadius: 8, color: "#cbd5e1", background: "none",
+          border: "none", cursor: "pointer",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "#f1f5f9"; }}
+        onMouseLeave={e => { e.currentTarget.style.color = "#cbd5e1"; e.currentTarget.style.background = "none"; }}
+      >
         <MoreVertical size={14} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-100 rounded-xl shadow-xl overflow-hidden w-48">
-          <div className="px-3 py-2 text-[9px] font-extrabold text-gray-400 uppercase tracking-widest border-b border-gray-50">
+        <div style={{
+          position: "absolute", right: 0, top: "100%", marginTop: 4, zIndex: 50,
+          background: "#ffffff", border: "1px solid #f1f5f9", borderRadius: 12,
+          boxShadow: "0 10px 40px rgba(0,0,0,0.12)", overflow: "hidden", width: 192,
+        }}>
+          <div style={{
+            padding: "8px 12px", fontSize: 9, fontWeight: 800, color: "#94a3b8",
+            textTransform: "uppercase", letterSpacing: "0.08em",
+            borderBottom: "1px solid #f8fafc",
+          }}>
             {person.ad_soyad}
           </div>
-          {[
-            { label:"Detaya Git",    Icon:ExternalLink, color:"text-blue-600",  fn: onDetail },
-            { label:"Düzenle",       Icon:Edit2,        color:"text-gray-700",  fn: onEdit   },
-            { label:"Şifre Sıfırla", Icon:KeyRound,     color:"text-amber-600", fn: () => { onSifreSifirla(person); setOpen(false); } },
-            { label: person.kilitli ? "Kilidi Aç" : "Hesabı Kilitle",
-              Icon:Lock,
-              color: person.kilitli ? "text-emerald-600" : "text-gray-500",
-              fn: () => { onKilitle(person); setOpen(false); }
-            },
-          ].map(({ label, Icon, color, fn }) => (
-            <button key={label} onClick={() => { fn(); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold hover:bg-gray-50 transition-colors ${color}`}>
+          {menuItems.map(({ label, Icon, color, fn }) => (
+            <button
+              key={label}
+              onClick={() => { fn(); }}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", fontSize: 12, fontWeight: 600,
+                color, background: "none", border: "none", cursor: "pointer",
+                textAlign: "left",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+              onMouseLeave={e => e.currentTarget.style.background = "none"}
+            >
               <Icon size={12} /> {label}
             </button>
           ))}
           {isAdmin && (
             <>
-              <div className="h-px bg-gray-50 mx-2" />
-              <button onClick={() => {
-                setOpen(false);
-                if (window.confirm(`${person.ad_soyad} pasif edilecek. Onaylıyor musunuz?`)) {
-                  onSoftDelete(person.id);
-                }
-              }}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors">
+              <div style={{ height: 1, background: "#f8fafc", margin: "0 8px" }} />
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  if (window.confirm(`${person.ad_soyad} pasif edilecek. Onaylıyor musunuz?`)) {
+                    onSoftDelete(person.id);
+                  }
+                }}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", fontSize: 12, fontWeight: 700,
+                  color: "#ef4444", background: "none", border: "none", cursor: "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#fef2f2"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
                 <UserMinus size={12} /> Soft Delete (Pasif Et)
               </button>
             </>
@@ -603,8 +745,8 @@ function ThreeDotsMenu({ person, isAdmin, onEdit, onDetail, onSifreSifirla, onKi
 /* ══════════════════════════ SEKME 1 – Ekip & Rol Matrisi ════════════════════ */
 function MatrisTab({ isAdmin }) {
   const navigate   = useNavigate();
-  const [items,    setItems]    = useState(MOCK_PERSONS);
-  const [total,    setTotal]    = useState(MOCK_PERSONS.length);
+  const [items,    setItems]    = useState([]);
+  const [total,    setTotal]    = useState(0);
   const [stats,    setStats]    = useState(null);
   const [filters,  setFilters]  = useState({ ekipler:[], roller:[] });
   const [loading,  setLoading]  = useState(false);
@@ -648,17 +790,8 @@ function MatrisTab({ isAdmin }) {
       setItems(r.data.items || []);
       setTotal(r.data.toplam ?? r.data.total ?? 0);
     } catch {
-      /* mock fallback: client-side filtrele */
-      const q = params.q.toLowerCase();
-      const filtered = MOCK_PERSONS.filter(p => {
-        if (q && !p.ad_soyad.toLowerCase().includes(q) && !p.dahili_no?.includes(q)) return false;
-        if (params.ekip_id && p.ekip !== params.ekip_id) return false;
-        if (params.rol     && p.rol  !== params.rol)     return false;
-        if (params.durum   && p.anlik_durum !== params.durum) return false;
-        return true;
-      });
-      setItems(filtered.slice((page-1)*PER_PAGE, page*PER_PAGE));
-      setTotal(filtered.length);
+      setItems([]);
+      setTotal(0);
     } finally {
       setLoading(false); setRefreshing(false);
     }
@@ -694,44 +827,44 @@ function MatrisTab({ isAdmin }) {
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-  const overrun    = stats?.mola_asimi || MOCK_PERSONS.filter(p => p.mola_asimi_dk > 0).length;
+  const overrun    = stats?.mola_asimi ?? 0;
 
-  /* Mock stats */
   const liveStats = stats ?? {
-    toplam: MOCK_PERSONS.length,
-    aktif:  MOCK_PERSONS.filter(p => p.anlik_durum === "aktif").length,
-    mesgul: MOCK_PERSONS.filter(p => p.anlik_durum === "mesgul").length,
-    mola:   MOCK_PERSONS.filter(p => p.anlik_durum === "mola").length,
-    offline:MOCK_PERSONS.filter(p => p.anlik_durum === "offline").length,
+    toplam: 0, aktif: 0, mesgul: 0, mola: 0, offline: 0,
   };
 
   const STAT_CARDS = [
-    { label:"Tümü",       key:"",       val: liveStats.toplam,  color:"slate"   },
-    { label:"Aktif",      key:"aktif",  val: liveStats.aktif,   color:"emerald" },
-    { label:"Görüşmede",  key:"mesgul", val: liveStats.mesgul,  color:"blue"    },
-    { label:"Molada",     key:"mola",   val: liveStats.mola,    color:"amber"   },
-    { label:"Offline",    key:"offline",val: liveStats.offline, color:"slate"   },
+    { label:"Tümü",       key:"",       val: liveStats.toplam,  textColor:"#1e293b"  },
+    { label:"Aktif",      key:"aktif",  val: liveStats.aktif,   textColor:"#065f46"  },
+    { label:"Görüşmede",  key:"mesgul", val: liveStats.mesgul,  textColor:"#1d4ed8"  },
+    { label:"Molada",     key:"mola",   val: liveStats.mola,    textColor:"#b45309"  },
+    { label:"Offline",    key:"offline",val: liveStats.offline, textColor:"#475569"  },
   ];
-  const colorMap = {
-    slate:{ icon:"text-slate-500",  bg:"bg-slate-50",   ring:"ring-slate-500/10", val:"text-slate-800", activeBg:"bg-slate-100"   },
-    emerald:{icon:"text-emerald-600",bg:"bg-emerald-50",ring:"ring-emerald-500/15",val:"text-emerald-700",activeBg:"bg-emerald-100" },
-    blue:  { icon:"text-blue-600",   bg:"bg-blue-50",   ring:"ring-blue-500/15",  val:"text-blue-700",  activeBg:"bg-blue-100"    },
-    amber: { icon:"text-amber-600",  bg:"bg-amber-50",  ring:"ring-amber-500/15", val:"text-amber-700", activeBg:"bg-amber-100"   },
-  };
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {/* ── Stats Bar ─────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-5 gap-3">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
         {STAT_CARDS.map(c => {
-          const s = colorMap[c.color] || colorMap.slate;
           const active = params.durum === c.key;
           return (
-            <button key={c.key} onClick={() => { setParams(p=>({...p,durum:c.key})); setPage(1); }}
-              className={cn("bg-white rounded-xl border border-gray-100 shadow-sm p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]",
-                active && "ring-2 ring-indigo-400 border-indigo-200")}>
-              <p className={cn("text-2xl font-extrabold", s.val)}>{c.val ?? "—"}</p>
-              <p className="text-xs font-semibold text-gray-500 mt-0.5">{c.label}</p>
+            <button
+              key={c.key}
+              onClick={() => { setParams(p=>({...p,durum:c.key})); setPage(1); }}
+              style={{
+                ...S.card,
+                padding: 16, textAlign: "left", cursor: "pointer",
+                transition: "all 0.15s", border: "1px solid",
+                borderColor: active ? "#818cf8" : "#f1f5f9",
+                boxShadow: active
+                  ? "0 0 0 2px rgba(99,102,241,0.25), 0 1px 3px rgba(0,0,0,0.06)"
+                  : "0 1px 3px rgba(0,0,0,0.06)",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = active ? "0 0 0 2px rgba(99,102,241,0.25), 0 1px 3px rgba(0,0,0,0.06)" : "0 1px 3px rgba(0,0,0,0.06)"; }}
+            >
+              <p style={{ fontSize: 24, fontWeight: 800, color: c.textColor }}>{c.val ?? "—"}</p>
+              <p style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginTop: 2 }}>{c.label}</p>
             </button>
           );
         })}
@@ -739,23 +872,38 @@ function MatrisTab({ isAdmin }) {
 
       {/* Mola aşımı alarm banner */}
       {overrun > 0 && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertTriangle size={16} className="text-red-500 flex-shrink-0 animate-pulse" />
-          <p className="text-sm font-semibold text-red-700">
+        <div style={{
+          display: "flex", alignItems: "center", gap: 12,
+          background: "#fef2f2", border: "1px solid #fca5a5",
+          borderRadius: 12, padding: "12px 16px",
+        }}>
+          <AlertTriangle size={16} style={{ color: "#ef4444", flexShrink: 0, animation: "pulse 2s ease-in-out infinite" }} />
+          <p style={{ fontSize: 13, fontWeight: 600, color: "#b91c1c" }}>
             <strong>{overrun} personel</strong> mola süresini aşıyor — kırmızı satırları inceleyin.
           </p>
         </div>
       )}
 
       {/* ── Filtre + Tablo Kartı ────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+      <div style={{ ...S.card, overflow: "hidden" }}>
         {/* Filtre çubuğu */}
-        <div className="px-5 py-4 border-b border-gray-50 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={params.q} onChange={e => { setParams(p=>({...p,q:e.target.value})); setPage(1); }}
+        <div style={{
+          padding: "16px 20px", borderBottom: "1px solid #f8fafc",
+          display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+        }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+            <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+            <input
+              value={params.q}
+              onChange={e => { setParams(p=>({...p,q:e.target.value})); setPage(1); }}
               placeholder="Ad, kullanıcı adı veya dahili..."
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 placeholder:text-gray-400" />
+              style={{
+                width: "100%", paddingLeft: 36, paddingRight: 16, paddingTop: 8, paddingBottom: 8,
+                fontSize: 13, border: "1px solid #e2e8f0", borderRadius: 8,
+                background: "rgba(248,250,252,0.5)", outline: "none",
+                boxSizing: "border-box", color: "#0f172a",
+              }}
+            />
           </div>
           <SelectField label="Ekip" value={params.ekip_id}
             onChange={v => { setParams(p=>({...p,ekip_id:v})); setPage(1); }}
@@ -764,21 +912,47 @@ function MatrisTab({ isAdmin }) {
             onChange={v => { setParams(p=>({...p,rol:v})); setPage(1); }}
             options={(filters.roller||[{ad:"supervisor"},{ad:"agent"}]).map(r => ({v:r.ad||r,l:r.ad||r}))} />
           {(params.q||params.ekip_id||params.rol||params.durum) && (
-            <button onClick={() => { setParams({q:"",ekip_id:"",rol:"",durum:""}); setPage(1); }}
-              className="flex items-center gap-1 px-3 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+            <button
+              onClick={() => { setParams({q:"",ekip_id:"",rol:"",durum:""}); setPage(1); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 4,
+                padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#64748b",
+                background: "none", border: "none", borderRadius: 8, cursor: "pointer",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = "#374151"; e.currentTarget.style.background = "#f1f5f9"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "none"; }}
+            >
               <X size={11} /> Temizle
             </button>
           )}
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-xs text-gray-400 font-medium">{loading ? "…" : `${total} personel`}</span>
-            <button onClick={() => fetchList(true)} disabled={refreshing}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>{loading ? "…" : `${total} personel`}</span>
+            <button
+              onClick={() => fetchList(true)}
+              disabled={refreshing}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#64748b",
+                border: "1px solid #e2e8f0", borderRadius: 8, background: "#ffffff",
+                cursor: "pointer", opacity: refreshing ? 0.5 : 1,
+              }}
+              onMouseEnter={e => !refreshing && (e.currentTarget.style.background = "#f8fafc")}
+              onMouseLeave={e => e.currentTarget.style.background = "#ffffff"}
+            >
               <RefreshCw size={12} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
               Yenile
             </button>
             {isAdmin && (
-              <button onClick={() => setYeniPersonelOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors">
+              <button
+                onClick={() => setYeniPersonelOpen(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#ffffff",
+                  background: "#059669", border: "none", borderRadius: 8, cursor: "pointer",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#047857"}
+                onMouseLeave={e => e.currentTarget.style.background = "#059669"}
+              >
                 <Plus size={12} /> Yeni Personel
               </button>
             )}
@@ -786,71 +960,112 @@ function MatrisTab({ isAdmin }) {
         </div>
 
         {/* Tablo başlığı */}
-        <div className="hidden md:grid px-5 py-2.5 bg-gray-50/70 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider"
-          style={{ gridTemplateColumns:"minmax(200px,2.5fr) 90px 120px 90px 120px 100px 60px 40px" }}>
+        <div
+          style={{
+            display: "grid", padding: "10px 20px",
+            background: "rgba(248,250,252,0.7)", borderBottom: "1px solid #f1f5f9",
+            fontSize: 10, fontWeight: 700, color: "#94a3b8",
+            textTransform: "uppercase", letterSpacing: "0.06em",
+            gridTemplateColumns: "minmax(200px,2.5fr) 90px 120px 90px 120px 100px 60px 40px",
+          }}
+        >
           <span>Personel</span><span>Dahili</span><span>Ekip</span><span>Rol</span>
-          <span>Durum</span><span>XP / Seviye</span><span className="text-right">Çağrı</span><span />
+          <span>Durum</span><span>XP / Seviye</span><span style={{ textAlign: "right" }}>Çağrı</span><span />
         </div>
 
         {/* Satırlar */}
-        <div className="divide-y divide-gray-50">
+        <div>
           {loading ? (
             Array.from({length:5}).map((_,i) => (
-              <div key={i} className="h-[58px] mx-4 my-2 rounded-lg bg-gray-100/60 animate-pulse" />
+              <div key={i} style={{
+                height: 58, margin: "8px 16px", borderRadius: 8,
+                background: "rgba(241,245,249,0.6)",
+                animation: "pulse 2s ease-in-out infinite",
+              }} />
             ))
           ) : items.length === 0 ? (
-            <div className="py-16 text-center">
-              <Users size={36} className="mx-auto mb-3 text-gray-200" />
-              <p className="text-sm text-gray-400 font-medium">Filtrelere uyan personel bulunamadı</p>
+            <div style={{ padding: "64px 0", textAlign: "center" }}>
+              <Users size={36} style={{ display: "block", margin: "0 auto 12px", color: "#e2e8f0" }} />
+              <p style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>Filtrelere uyan personel bulunamadı</p>
             </div>
           ) : items.map(p => {
             const overrunRow = (p.mola_asimi_dk || 0) > 0;
             return (
-              <div key={p.id}
-                className={cn(
-                  "group hidden md:grid items-center px-5 py-3 cursor-pointer transition-colors",
-                  "hover:bg-indigo-50/20",
-                  overrunRow ? "border-l-2 border-red-400 bg-red-50/20" : "border-l-2 border-transparent"
-                )}
-                style={{ gridTemplateColumns:"minmax(200px,2.5fr) 90px 120px 90px 120px 100px 60px 40px" }}
+              <div
+                key={p.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(200px,2.5fr) 90px 120px 90px 120px 100px 60px 40px",
+                  alignItems: "center",
+                  padding: "12px 20px",
+                  cursor: "pointer",
+                  borderBottom: "1px solid #f8fafc",
+                  borderLeft: `2px solid ${overrunRow ? "#f87171" : "transparent"}`,
+                  background: overrunRow ? "rgba(239,68,68,0.04)" : "transparent",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = overrunRow ? "rgba(239,68,68,0.07)" : "#f8fafc"}
+                onMouseLeave={e => e.currentTarget.style.background = overrunRow ? "rgba(239,68,68,0.04)" : "transparent"}
                 onClick={() => navigate(`/admin/personnel/${p.id}`)}
               >
                 {/* Personel */}
-                <div className="flex items-center gap-2.5 min-w-0">
+                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                   <Avatar name={p.ad_soyad} color={p._c || "#6366f1"} size={34} />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm font-bold text-gray-900 truncate">{p.ad_soyad}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{
+                        fontSize: 13, fontWeight: 700, color: "#0f172a",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }}>{p.ad_soyad}</span>
                       {p.unvan && (
-                        <span className="text-[9px] font-extrabold text-violet-600 bg-violet-50 border border-violet-200/50 rounded px-1.5 whitespace-nowrap">
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, color: "#7c3aed",
+                          background: "#f5f3ff", border: "1px solid rgba(139,92,246,0.3)",
+                          borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap",
+                        }}>
                           {p.unvan.toUpperCase()}
                         </span>
                       )}
                       {overrunRow && (
-                        <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 whitespace-nowrap animate-pulse">
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, color: "#dc2626",
+                          background: "#fef2f2", border: "1px solid #fca5a5",
+                          borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap",
+                          animation: "pulse 2s ease-in-out infinite",
+                        }}>
                           +{p.mola_asimi_dk}DK AŞIM
                         </span>
                       )}
                       {p.kilitli && (
-                        <span className="text-[9px] font-extrabold text-slate-500 bg-slate-100 border border-slate-300 rounded px-1.5 whitespace-nowrap">
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, color: "#64748b",
+                          background: "#f1f5f9", border: "1px solid #cbd5e1",
+                          borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap",
+                        }}>
                           🔒 KİLİTLİ
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-0.5">@{p.kullanici_adi || "—"}</p>
+                    <p style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>@{p.kullanici_adi || "—"}</p>
                   </div>
                 </div>
 
                 {/* Dahili */}
-                <div className="flex items-center gap-1">
-                  <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{
+                    fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#4f46e5",
+                    background: "#eef2ff", padding: "2px 8px", borderRadius: 6,
+                  }}>
                     {p.dahili_no || "—"}
                   </span>
-                  {p.sip_durumu === "koptu" && <WifiOff size={10} className="text-red-400" />}
+                  {p.sip_durumu === "koptu" && <WifiOff size={10} style={{ color: "#f87171" }} />}
                 </div>
 
                 {/* Ekip */}
-                <span className="text-xs text-gray-600 font-medium truncate">{p.ekip || "—"}</span>
+                <span style={{
+                  fontSize: 11, color: "#475569", fontWeight: 500,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>{p.ekip || "—"}</span>
 
                 {/* Rol */}
                 <RoleBadge rol={p.rol} />
@@ -860,15 +1075,20 @@ function MatrisTab({ isAdmin }) {
 
                 {/* XP */}
                 <div>
-                  <p className="text-[11px] font-bold text-violet-600 mb-1">{(p.xp||0).toLocaleString("tr-TR")} XP</p>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#7c3aed", marginBottom: 4 }}>
+                    {(p.xp||0).toLocaleString("tr-TR")} XP
+                  </p>
                   <XpBar xp={p.xp} seviye={p.seviye} />
                 </div>
 
                 {/* Bugün Çağrı */}
-                <p className="text-sm font-bold text-gray-800 text-right">{p.bugun_cagri ?? 0}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", textAlign: "right" }}>{p.bugun_cagri ?? 0}</p>
 
                 {/* Aksiyonlar */}
-                <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                <div
+                  style={{ display: "flex", justifyContent: "flex-end" }}
+                  className="_three-dots-wrap"
+                >
                   <ThreeDotsMenu
                     person={p} isAdmin={isAdmin}
                     onDetail={() => navigate(`/admin/personnel/${p.id}`)}
@@ -885,29 +1105,58 @@ function MatrisTab({ isAdmin }) {
 
         {/* Sayfalama */}
         {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50 flex items-center justify-between">
-            <span className="text-xs text-gray-400">
-              <strong className="text-gray-600">{total}</strong> personelden&nbsp;
+          <div style={{
+            padding: "12px 20px", borderTop: "1px solid #f8fafc",
+            background: "rgba(248,250,252,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <span style={{ fontSize: 11, color: "#94a3b8" }}>
+              <strong style={{ color: "#475569" }}>{total}</strong> personelden&nbsp;
               {(page-1)*PER_PAGE+1}–{Math.min(page*PER_PAGE,total)} gösteriliyor
             </span>
-            <div className="flex items-center gap-1.5">
-              <button disabled={page===1} onClick={() => setPage(p=>Math.max(1,p-1))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                disabled={page===1}
+                onClick={() => setPage(p=>Math.max(1,p-1))}
+                style={{
+                  width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: 8, border: "1px solid #e2e8f0", color: "#64748b",
+                  background: "#ffffff", cursor: page===1 ? "not-allowed" : "pointer",
+                  opacity: page===1 ? 0.3 : 1,
+                }}
+              >
                 <ChevronLeft size={14} />
               </button>
               {Array.from({length:Math.min(5,totalPages)},(_,i)=>{
                 const pg = page<=3 ? i+1 : page-2+i;
                 if (pg<1||pg>totalPages) return null;
                 return (
-                  <button key={pg} onClick={() => setPage(pg)}
-                    className={cn("w-8 h-8 rounded-lg text-xs font-bold transition-colors border",
-                      pg===page ? "bg-indigo-600 text-white border-indigo-600" : "border-gray-200 text-gray-600 hover:bg-gray-100")}>
+                  <button
+                    key={pg}
+                    onClick={() => setPage(pg)}
+                    style={{
+                      width: 32, height: 32, borderRadius: 8, fontSize: 11, fontWeight: 700,
+                      cursor: "pointer", transition: "colors 0.1s",
+                      border: "1px solid",
+                      borderColor: pg===page ? "#6366f1" : "#e2e8f0",
+                      background: pg===page ? "#6366f1" : "#ffffff",
+                      color: pg===page ? "#ffffff" : "#475569",
+                    }}
+                  >
                     {pg}
                   </button>
                 );
               })}
-              <button disabled={page===totalPages} onClick={() => setPage(p=>Math.min(totalPages,p+1))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+              <button
+                disabled={page===totalPages}
+                onClick={() => setPage(p=>Math.min(totalPages,p+1))}
+                style={{
+                  width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+                  borderRadius: 8, border: "1px solid #e2e8f0", color: "#64748b",
+                  background: "#ffffff", cursor: page===totalPages ? "not-allowed" : "pointer",
+                  opacity: page===totalPages ? 0.3 : 1,
+                }}
+              >
                 <ChevronRight size={14} />
               </button>
             </div>
@@ -957,38 +1206,62 @@ function MatrisTab({ isAdmin }) {
 function AttendanceCell({ dayData, isToday, isSelected, onClick }) {
   if (!dayData.planned) {
     return (
-      <div className="h-[72px] rounded-lg border border-dashed border-gray-200 bg-gray-50/60 flex items-center justify-center">
-        <span className="text-gray-300 text-xs">—</span>
+      <div style={{
+        height: 72, borderRadius: 8, border: "1px dashed #e2e8f0",
+        background: "rgba(248,250,252,0.6)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <span style={{ color: "#cbd5e1", fontSize: 11 }}>—</span>
       </div>
     );
   }
   if (!dayData.actual_in) {
     return (
-      <div onClick={onClick} className={cn("h-[72px] rounded-lg border border-red-100 bg-red-50 flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:border-red-200 transition-all", isSelected && "ring-2 ring-red-400 ring-offset-1")}>
-        <XCircle size={18} className="text-red-300" />
-        <span className="text-[9px] font-bold text-red-400 uppercase tracking-wide">Devamsız</span>
+      <div
+        onClick={onClick}
+        style={{
+          height: 72, borderRadius: 8, border: "1px solid #fca5a5",
+          background: "#fef2f2", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 2,
+          cursor: "pointer",
+          boxShadow: isSelected ? "0 0 0 2px #f87171, 0 0 0 3px #fff0f0" : "none",
+        }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = "#f87171"}
+        onMouseLeave={e => e.currentTarget.style.borderColor = "#fca5a5"}
+      >
+        <XCircle size={18} style={{ color: "#fca5a5" }} />
+        <span style={{ fontSize: 9, fontWeight: 700, color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Devamsız</span>
       </div>
     );
   }
   const hasAny = dayData.late > 5 || dayData.early > 10 || dayData.bov;
   return (
-    <div onClick={onClick}
-      className={cn(
-        "relative h-[72px] rounded-lg border p-2 cursor-pointer select-none transition-all",
-        hasAny ? "border-amber-200 bg-amber-50/40 hover:bg-amber-50" : "border-gray-100 bg-white hover:bg-indigo-50/20",
-        isToday && !hasAny && "border-indigo-200 bg-indigo-50/20",
-        isSelected && "ring-2 ring-indigo-400 ring-offset-1"
-      )}>
+    <div
+      onClick={onClick}
+      style={{
+        position: "relative", height: 72, borderRadius: 8, padding: 8,
+        cursor: "pointer", userSelect: "none", transition: "all 0.15s",
+        border: "1px solid",
+        borderColor: hasAny ? "#fcd34d" : isToday && !hasAny ? "#a5b4fc" : "#f1f5f9",
+        background: hasAny ? "rgba(245,158,11,0.05)" : isToday && !hasAny ? "rgba(99,102,241,0.05)" : "#ffffff",
+        boxShadow: isSelected ? "0 0 0 2px #6366f1, 0 0 0 3px #eef2ff" : "none",
+      }}
+    >
       {dayData.bov && (
-        <span className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 flex items-center justify-center shadow z-10">
-          <span className="text-white text-[9px] font-bold">!</span>
+        <span style={{
+          position: "absolute", top: -6, right: -6, width: 16, height: 16,
+          borderRadius: "50%", background: "#ef4444",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)", zIndex: 10,
+        }}>
+          <span style={{ color: "#ffffff", fontSize: 9, fontWeight: 700 }}>!</span>
         </span>
       )}
-      <p className="text-[11px] font-semibold text-gray-600 leading-tight">{dayData.planned}</p>
-      <div className="mt-1 space-y-0.5">
-        {dayData.late > 5  && <div className="flex items-center gap-0.5"><span className="text-red-500 text-[10px] font-bold">▲</span><span className="text-red-500 text-[10px] font-semibold">+{dayData.late}dk</span></div>}
-        {dayData.early > 10 && <div className="flex items-center gap-0.5"><span className="text-orange-400 text-[10px] font-bold">▼</span><span className="text-orange-500 text-[10px] font-semibold">-{dayData.early}dk</span></div>}
-        {dayData.bov && !dayData.late && !dayData.early && <div className="flex items-center gap-0.5"><Clock size={9} className="text-red-400"/><span className="text-red-400 text-[10px] font-semibold">{dayData.brk}dk mola</span></div>}
+      <p style={{ fontSize: 11, fontWeight: 600, color: "#475569", lineHeight: 1.3 }}>{dayData.planned}</p>
+      <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+        {dayData.late > 5  && <div style={{ display: "flex", alignItems: "center", gap: 2 }}><span style={{ color: "#ef4444", fontSize: 10, fontWeight: 700 }}>▲</span><span style={{ color: "#ef4444", fontSize: 10, fontWeight: 600 }}>+{dayData.late}dk</span></div>}
+        {dayData.early > 10 && <div style={{ display: "flex", alignItems: "center", gap: 2 }}><span style={{ color: "#f97316", fontSize: 10, fontWeight: 700 }}>▼</span><span style={{ color: "#f97316", fontSize: 10, fontWeight: 600 }}>-{dayData.early}dk</span></div>}
+        {dayData.bov && !dayData.late && !dayData.early && <div style={{ display: "flex", alignItems: "center", gap: 2 }}><Clock size={9} style={{ color: "#f87171" }}/><span style={{ color: "#f87171", fontSize: 10, fontWeight: 600 }}>{dayData.brk}dk mola</span></div>}
       </div>
     </div>
   );
@@ -996,46 +1269,64 @@ function AttendanceCell({ dayData, isToday, isSelected, onClick }) {
 
 function DayDetailPanel({ sel, onClose }) {
   if (!sel) return (
-    <div className="bg-white rounded-xl border border-dashed border-gray-200 h-44 flex flex-col items-center justify-center gap-2 text-gray-400">
-      <Clock size={22} className="opacity-30" />
-      <p className="text-xs text-center">Hücreye tıklayın</p>
+    <div style={{
+      ...S.card,
+      border: "1px dashed #e2e8f0", height: 176,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 8, color: "#94a3b8",
+    }}>
+      <Clock size={22} style={{ opacity: 0.3 }} />
+      <p style={{ fontSize: 11, textAlign: "center" }}>Hücreye tıklayın</p>
     </div>
   );
   const { person, dayData, dayLabel } = sel;
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2.5">
+    <div style={{ ...S.card, padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Avatar name={person.ad_soyad} color={person._c || "#6366f1"} size={32} />
           <div>
-            <p className="text-sm font-bold text-gray-900">{person.ad_soyad}</p>
-            <p className="text-[10px] text-gray-400">{dayLabel}</p>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{person.ad_soyad}</p>
+            <p style={{ fontSize: 10, color: "#94a3b8" }}>{dayLabel}</p>
           </div>
         </div>
-        <button onClick={onClose} className="p-1 rounded text-gray-300 hover:text-gray-500"><X size={13}/></button>
+        <button
+          onClick={onClose}
+          style={{ padding: 4, borderRadius: 4, color: "#cbd5e1", background: "none", border: "none", cursor: "pointer" }}
+          onMouseEnter={e => e.currentTarget.style.color = "#64748b"}
+          onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}
+        >
+          <X size={13}/>
+        </button>
       </div>
-      <hr className="border-gray-100" />
-      <div className="grid grid-cols-2 gap-2">
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Giriş</p>
-          <p className={cn("text-base font-extrabold", dayData.late>5 ? "text-red-600" : "text-gray-800")}>{dayData.actual_in||"—"}</p>
-          {dayData.late>5 && <p className="text-[10px] text-red-500 font-semibold">+{dayData.late}dk gecikme</p>}
+      <hr style={{ border: "none", borderTop: "1px solid #f1f5f9" }} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12 }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Giriş</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: dayData.late>5 ? "#dc2626" : "#1e293b" }}>{dayData.actual_in||"—"}</p>
+          {dayData.late>5 && <p style={{ fontSize: 10, color: "#ef4444", fontWeight: 600 }}>+{dayData.late}dk gecikme</p>}
         </div>
-        <div className="bg-gray-50 rounded-lg p-3">
-          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Çıkış</p>
-          <p className={cn("text-base font-extrabold", dayData.early>10 ? "text-orange-500" : "text-gray-800")}>{dayData.actual_out||"—"}</p>
-          {dayData.early>10 && <p className="text-[10px] text-orange-500 font-semibold">-{dayData.early}dk erken</p>}
+        <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12 }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Çıkış</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: dayData.early>10 ? "#f97316" : "#1e293b" }}>{dayData.actual_out||"—"}</p>
+          {dayData.early>10 && <p style={{ fontSize: 10, color: "#f97316", fontWeight: 600 }}>-{dayData.early}dk erken</p>}
         </div>
       </div>
-      <div className="bg-gray-50 rounded-lg p-3 flex items-center justify-between">
-        <div><p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Mola</p>
-          <p className={cn("text-base font-extrabold", dayData.bov ? "text-red-600" : "text-gray-800")}>{dayData.brk}dk</p></div>
-        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", dayData.bov ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600")}>
+      <div style={{ background: "#f8fafc", borderRadius: 8, padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ fontSize: 9, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Mola</p>
+          <p style={{ fontSize: 16, fontWeight: 800, color: dayData.bov ? "#dc2626" : "#1e293b" }}>{dayData.brk}dk</p>
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+          background: dayData.bov ? "#fef2f2" : "#ecfdf5",
+          color: dayData.bov ? "#dc2626" : "#059669",
+        }}>
           {dayData.bov ? "Süre Aşıldı" : "Normal"}
         </span>
       </div>
-      <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
-        <Clock size={10} className="text-gray-300"/> Planlanan: <strong className="text-gray-600">{dayData.planned}</strong>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#94a3b8" }}>
+        <Clock size={10} style={{ color: "#cbd5e1" }}/> Planlanan: <strong style={{ color: "#475569" }}>{dayData.planned}</strong>
       </div>
     </div>
   );
@@ -1102,93 +1393,136 @@ function VardiyaTab() {
   }, 0);
 
   return (
-    <div className="flex gap-5">
-      <div className="flex-1 min-w-0 space-y-4">
+    <div style={{ display: "flex", gap: 20 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Hafta başlığı */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3.5 flex items-center justify-between">
+        <div style={{ ...S.card, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <p className="font-bold text-gray-900 text-sm">{weekLabel}</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {loading ? "Yükleniyor…" : <><strong className="text-red-500">{totalViol}</strong> devam ihlali</>}
+            <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 13 }}>{weekLabel}</p>
+            <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
+              {loading ? "Yükleniyor…" : <><strong style={{ color: "#ef4444" }}>{totalViol}</strong> devam ihlali</>}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
               onClick={() => setWeekOffset(o => o - 1)}
-              className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 transition-colors">
+              style={{
+                padding: 6, borderRadius: 8, border: "1px solid #e2e8f0",
+                color: "#94a3b8", background: "#ffffff", cursor: "pointer",
+                display: "flex", alignItems: "center",
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = "#475569"}
+              onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+            >
               <ChevronLeft size={14}/>
             </button>
             <button
               onClick={() => setWeekOffset(0)}
-              className={cn(
-                "text-xs font-semibold px-2 py-1 rounded-lg border transition-colors",
-                weekOffset === 0
-                  ? "border-indigo-300 bg-indigo-50 text-indigo-600"
-                  : "border-gray-200 text-gray-500 hover:bg-gray-50"
-              )}>
+              style={{
+                fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 8,
+                border: "1px solid", cursor: "pointer", transition: "all 0.15s",
+                borderColor: weekOffset === 0 ? "#a5b4fc" : "#e2e8f0",
+                background: weekOffset === 0 ? "#eef2ff" : "#ffffff",
+                color: weekOffset === 0 ? "#4f46e5" : "#64748b",
+              }}
+            >
               {weekOffset === 0 ? "Bu Hafta" : weekOffset < 0 ? `${-weekOffset} hafta önce` : `${weekOffset} hafta sonra`}
             </button>
             <button
               onClick={() => setWeekOffset(o => o + 1)}
-              className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-600 transition-colors">
+              style={{
+                padding: 6, borderRadius: 8, border: "1px solid #e2e8f0",
+                color: "#94a3b8", background: "#ffffff", cursor: "pointer",
+                display: "flex", alignItems: "center",
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = "#475569"}
+              onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+            >
               <ChevronRight size={14}/>
             </button>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-[10px] text-gray-400 px-1 flex-wrap">
-          <span className="flex items-center gap-1"><span className="text-red-500 font-bold">▲</span> Geç (&gt;5dk)</span>
-          <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">▼</span> Erken (&gt;10dk)</span>
-          <span className="flex items-center gap-1"><span className="w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">!</span> Mola Aşımı</span>
-          <span className="flex items-center gap-1"><XCircle size={11} className="text-red-400"/> Devamsız</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 10, color: "#94a3b8", padding: "0 4px", flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#ef4444", fontWeight: 700 }}>▲</span> Geç (&gt;5dk)</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#f97316", fontWeight: 700 }}>▼</span> Erken (&gt;10dk)</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#ef4444", color: "#fff", fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>!</span>
+            Mola Aşımı
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><XCircle size={11} style={{ color: "#f87171" }}/> Devamsız</span>
         </div>
 
         {/* Matris tablosu */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div style={{ ...S.card, overflow: "hidden" }}>
           {loading ? (
-            <div className="p-8 text-center text-gray-400 text-sm">
-              <RefreshCw size={18} className="mx-auto mb-2 text-gray-300 animate-spin" />
+            <div style={{ padding: 32, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+              <RefreshCw size={18} style={{ display: "block", margin: "0 auto 8px", color: "#cbd5e1", animation: "spin 0.8s linear infinite" }} />
               Yükleniyor…
             </div>
           ) : personList.length === 0 ? (
-            <div className="p-8 text-center text-gray-400 text-sm">
-              <Users size={28} className="mx-auto mb-2 text-gray-200" />
+            <div style={{ padding: 32, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+              <Users size={28} style={{ display: "block", margin: "0 auto 8px", color: "#e2e8f0" }} />
               Personel bulunamadı
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="border-collapse" style={{ minWidth:800, width:"100%" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", minWidth: 800, width: "100%" }}>
                 <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="sticky left-0 z-10 bg-gray-50/80 px-4 py-3 text-left text-[10px] font-bold text-gray-500 uppercase tracking-wider border-r border-gray-100 w-[176px]">Personel</th>
+                  <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <th style={{
+                      position: "sticky", left: 0, zIndex: 10, background: "rgba(248,250,252,0.9)",
+                      padding: "12px 16px", textAlign: "left", fontSize: 10, fontWeight: 700,
+                      color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em",
+                      borderRight: "1px solid #f1f5f9", width: 176,
+                    }}>Personel</th>
                     {weekDays.map((d,i) => (
-                      <th key={i} className={cn("px-2 py-3 text-center text-[10px] font-bold uppercase tracking-wider w-[104px]", d.today ? "text-indigo-600 bg-indigo-50/40" : "text-gray-500 bg-gray-50/80")}>
+                      <th key={i} style={{
+                        padding: "12px 8px", textAlign: "center", fontSize: 10, fontWeight: 700,
+                        textTransform: "uppercase", letterSpacing: "0.06em", width: 104,
+                        color: d.today ? "#4f46e5" : "#64748b",
+                        background: d.today ? "rgba(99,102,241,0.05)" : "rgba(248,250,252,0.9)",
+                      }}>
                         <p>{d.label}</p>
-                        <p className={cn("text-[9px] font-medium mt-0.5", d.today ? "text-indigo-400":"text-gray-400")}>{d.date}</p>
+                        <p style={{ fontSize: 9, fontWeight: 500, marginTop: 2, color: d.today ? "#818cf8" : "#94a3b8" }}>{d.date}</p>
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {personList.map(person => {
                     const days = attendance[person.id] || Array(7).fill({ planned: null });
                     const color = person._c || avatarColor(person.id);
                     return (
-                      <tr key={person.id} className="hover:bg-gray-50/30 transition-colors">
-                        <td className="sticky left-0 z-10 bg-white px-4 py-2.5 border-r border-gray-100">
-                          <div className="flex items-center gap-2">
+                      <tr
+                        key={person.id}
+                        style={{ borderBottom: "1px solid #f8fafc" }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(248,250,252,0.5)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <td style={{
+                          position: "sticky", left: 0, zIndex: 10, background: "#ffffff",
+                          padding: "10px 16px", borderRight: "1px solid #f1f5f9",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <Avatar name={person.ad_soyad} color={color} size={28}/>
                             <div>
-                              <p className="text-[11px] font-bold text-gray-800 whitespace-nowrap">{person.ad_soyad}</p>
-                              <p className="text-[9px] text-gray-400">{person.ekip || "—"}</p>
+                              <p style={{ fontSize: 11, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap" }}>{person.ad_soyad}</p>
+                              <p style={{ fontSize: 9, color: "#94a3b8" }}>{person.ekip || "—"}</p>
                             </div>
                           </div>
                         </td>
                         {days.map((dayData, dayIdx) => {
                           const key = `${person.id}-${dayIdx}`;
                           return (
-                            <td key={dayIdx} className={cn("p-1.5", weekDays[dayIdx].today && "bg-indigo-50/10")}>
+                            <td
+                              key={dayIdx}
+                              style={{
+                                padding: 6,
+                                background: weekDays[dayIdx].today ? "rgba(99,102,241,0.04)" : "transparent",
+                              }}
+                            >
                               <AttendanceCell
                                 dayData={dayData}
                                 isToday={weekDays[dayIdx].today}
@@ -1218,7 +1552,7 @@ function VardiyaTab() {
       </div>
 
       {/* Detay paneli */}
-      <div className="w-[220px] flex-shrink-0">
+      <div style={{ width: 220, flexShrink: 0 }}>
         <DayDetailPanel sel={selected} onClose={() => setSelected(null)} />
       </div>
     </div>
@@ -1238,29 +1572,52 @@ export default function PersonnelPage() {
   const [tab, setTab] = useState("matris");
 
   return (
-    <div className="min-h-full pb-8 space-y-5">
+    <div style={{ minHeight: "100%", paddingBottom: 32, display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Başlık */}
-      <div className="flex items-start justify-between">
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
         <div>
-          <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Personel Yönetim Merkezi</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Müşteri Hizmetleri · ekip, rol, vardiya ve devamlılık yönetimi</p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>
+            Personel Yönetim Merkezi
+          </h1>
+          <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 2 }}>
+            Müşteri Hizmetleri · ekip, rol, vardiya ve devamlılık yönetimi
+          </p>
         </div>
         {isAdmin && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-red-50 text-red-600 rounded-full ring-1 ring-inset ring-red-500/20">
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "6px 12px", fontSize: 11, fontWeight: 700,
+            background: "#fef2f2", color: "#dc2626", borderRadius: 20,
+            boxShadow: "inset 0 0 0 1px rgba(239,68,68,0.2)",
+          }}>
             <Shield size={11} /> Admin Override Aktif
           </span>
         )}
       </div>
 
       {/* Sekme çubuğu */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-1.5 flex gap-1 w-fit">
+      <div style={{
+        ...S.card,
+        padding: 6, display: "flex", gap: 4, width: "fit-content",
+      }}>
         {TABS.map(t => {
           const Icon = t.icon;
           const active = tab === t.id;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              className={cn("flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all",
-                active ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200" : "text-gray-500 hover:text-gray-700 hover:bg-gray-50")}>
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+                cursor: "pointer", transition: "all 0.15s", border: "none",
+                background: active ? "#6366f1" : "transparent",
+                color: active ? "#ffffff" : "#64748b",
+                boxShadow: active ? "0 1px 3px rgba(99,102,241,0.25)" : "none",
+              }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "#374151"; e.currentTarget.style.background = "#f8fafc"; } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "transparent"; } }}
+            >
               <Icon size={14} /> {t.label}
             </button>
           );
@@ -1271,7 +1628,10 @@ export default function PersonnelPage() {
       {tab === "matris"  && <MatrisTab isAdmin={isAdmin} />}
       {tab === "vardiya" && <VardiyaTab />}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+      `}</style>
     </div>
   );
 }

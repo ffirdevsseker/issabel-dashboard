@@ -1,41 +1,30 @@
 /**
- * Admin · Sistem & Raporlar  —  /admin/reports
+ * Admin · Raporlar  —  /admin/reports
  *
- * Tema: diğer admin sayfalarıyla aynı (beyaz kart, #0f172a metin, pastel bg)
- * Veri kaynakları (mock yok):
- *   overviewApi.getCommand()            → trunk / SLA / kuyruk / günlük çağrı
- *   overviewApi.getHourly()             → saatlik trafik dizisi
- *   operationsApi.getAuditLogs({limit}) → supervisor denetim logları
+ * Tema: ADMIN_THEME (adminTheme.js)
+ * Sekmeler:
+ *   1. Denetim Logları  → operationsApi.getAuditLogs(...)
+ *   2. Personel Perf.   → personnelApi.getList({ per_page: 100 })
+ *   3. Trendler         → overviewApi.getHourly()
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, BarChart3, ChevronLeft, ChevronRight,
-  Clock, Cpu, Download, Phone, RefreshCw, Server, Shield,
-  TrendingDown, TrendingUp, CheckCircle2,
+  BarChart3, ChevronLeft, ChevronRight,
+  Clock, Download, RefreshCw, CheckCircle2,
+  Users, TrendingUp,
 } from "lucide-react";
-import DateRangePicker from "@/components/admin/DateRangePicker";
 import {
-  Area, AreaChart, CartesianGrid, Legend,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import DateRangePicker from "@/components/admin/DateRangePicker";
 
-import { overviewApi, operationsApi } from "@/services/api";
+import { ADMIN_THEME } from "@/constants/adminTheme";
+import { operationsApi, personnelApi, overviewApi } from "@/services/api";
 import { Panel } from "@/pages/admin/Overview";
 
-/* ─── Renk paleti (diğer admin sayfalarıyla aynı) ──────────────────────────── */
-const C = {
-  text:    "#0f172a",
-  muted:   "#94a3b8",
-  faint:   "#cbd5e1",
-  border:  "rgba(0,0,0,0.07)",
-  borderL: "rgba(0,0,0,0.05)",
-  green:   "#10b981",
-  yellow:  "#f59e0b",
-  red:     "#ef4444",
-  blue:    "#3b82f6",
-  purple:  "#8b5cf6",
-  teal:    "#14b8a6",
-};
+/* ─── Renk paleti ────────────────────────────────────────────────────────────── */
+const C = ADMIN_THEME;
 
 const POLL_MS = 30_000;
 
@@ -101,102 +90,6 @@ function Shimmer({ h = 100, radius = 12 }) {
   );
 }
 
-/* ─── Sağlık Kartı (açık tema) ──────────────────────────────────────────────── */
-function HealthCard({ icon: Icon, label, value, sub, extra, durum, trend }) {
-  const kritik  = durum === "kritik";
-  const uyari   = durum === "uyari";
-  const renk    = kritik ? C.red : uyari ? C.yellow : C.green;
-
-  return (
-    <div style={{
-      background: "#ffffff",
-      border: `1px solid ${kritik ? "rgba(239,68,68,0.22)" : uyari ? "rgba(245,158,11,0.2)" : C.border}`,
-      borderTop: `3px solid ${renk}`,
-      borderRadius: 14,
-      boxShadow: kritik
-        ? "0 2px 12px rgba(239,68,68,0.1)"
-        : uyari ? "0 2px 12px rgba(245,158,11,0.08)"
-        : "0 2px 12px rgba(0,0,0,0.04)",
-      padding: "16px 18px",
-      display: "flex", flexDirection: "column", gap: 10,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 10,
-          background: `${renk}12`, border: `1px solid ${renk}25`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Icon size={16} color={renk} strokeWidth={2.3} />
-        </div>
-        <div style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: renk,
-          boxShadow: `0 0 0 3px ${renk}20`,
-          animation: kritik ? "rpPulse 1.6s ease-in-out infinite" : "none",
-        }} />
-      </div>
-
-      <div>
-        <div style={{
-          fontSize: 20, fontWeight: 800, color: renk,
-          lineHeight: 1.1, fontVariantNumeric: "tabular-nums",
-          letterSpacing: "-0.02em",
-        }}>
-          {value ?? "—"}
-        </div>
-        {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{sub}</div>}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-        <span style={{
-          color: C.muted, fontSize: 10, fontWeight: 700,
-          letterSpacing: "0.06em", textTransform: "uppercase",
-        }}>
-          {label}
-        </span>
-        {trend === "up"   && <TrendingUp   size={13} color={C.green} />}
-        {trend === "down" && <TrendingDown size={13} color={C.red}   />}
-      </div>
-
-      {extra && (
-        <div style={{
-          padding: "4px 8px", borderRadius: 7,
-          background: "rgba(0,0,0,0.03)",
-          border: `1px solid ${C.borderL}`,
-          color: C.muted, fontSize: 10,
-        }}>
-          {extra}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── Chart tooltip (açık tema) ────────────────────────────────────────────── */
-function ChartTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  const labelMap  = { toplam: "Toplam", cevaplanan: "Cevaplanan", kacan: "Kaçan" };
-  const colorMap  = { toplam: C.blue,   cevaplanan: C.green,       kacan: C.red   };
-  return (
-    <div style={{
-      background: "#ffffff",
-      border: `1px solid ${C.border}`,
-      borderRadius: 10, padding: "10px 14px",
-      boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
-      fontSize: 12, minWidth: 130,
-    }}>
-      <div style={{ fontWeight: 700, color: C.text, marginBottom: 6 }}>{label}</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 3 }}>
-          <span style={{ color: colorMap[p.dataKey] ?? C.muted }}>
-            {labelMap[p.dataKey] ?? p.dataKey}
-          </span>
-          <span style={{ color: C.text, fontWeight: 700 }}>{p.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /* ════════════════════════════════════════════════════════════════════════════
    ANA SAYFA
@@ -212,9 +105,16 @@ function defaultDateRange() {
 
 const AUDIT_PAGE_SIZE = 20;
 
+const TABS = [
+  { id: "audit",    label: "Denetim Logları",       Icon: BarChart3 },
+  { id: "perf",     label: "Personel Performansı",   Icon: Users     },
+  { id: "trendler", label: "Trendler",               Icon: TrendingUp },
+];
+
 export default function AdminReports() {
-  const [command,    setCommand]    = useState(null);
-  const [hourly,     setHourly]     = useState([]);
+  const [activeTab,  setActiveTab]  = useState("audit");
+
+  /* ── Denetim Logları (Sekme 1) ── */
   const [auditLogs,  setAuditLogs]  = useState([]);
   const [auditTotal, setAuditTotal] = useState(0);
   const [auditPage,  setAuditPage]  = useState(1);
@@ -223,6 +123,16 @@ export default function AdminReports() {
   const [spinning,   setSpinning]   = useState(false);
   const [lastSync,   setLastSync]   = useState(null);
   const timerRef = useRef(null);
+
+  /* ── Personel Performansı (Sekme 2) ── */
+  const [perfData,     setPerfData]     = useState([]);
+  const [perfLoading,  setPerfLoading]  = useState(false);
+  const [perfFetched,  setPerfFetched]  = useState(false);
+
+  /* ── Trendler (Sekme 3) ── */
+  const [hourlyData,   setHourlyData]   = useState([]);
+  const [hourlyLoading,setHourlyLoading]= useState(false);
+  const [hourlyFetched,setHourlyFetched]= useState(false);
 
   const fetchAudit = useCallback(async (page = 1) => {
     try {
@@ -241,12 +151,6 @@ export default function AdminReports() {
 
   const fetchAll = useCallback(async (manual = false) => {
     if (manual) setSpinning(true);
-    const [cmdRes, hourRes] = await Promise.allSettled([
-      overviewApi.getCommand(),
-      overviewApi.getHourly(),
-    ]);
-    if (cmdRes.status  === "fulfilled") setCommand(cmdRes.value.data);
-    if (hourRes.status === "fulfilled") setHourly(hourRes.value.data ?? []);
     await fetchAudit(1);
     setLastSync(new Date());
     setLoading(false);
@@ -262,71 +166,32 @@ export default function AdminReports() {
     return () => clearInterval(timerRef.current);
   }, [fetchAll]);
 
-  const trunk   = command?.trunk         ?? {};
-  const sla     = command?.sla           ?? {};
-  const kuyruk  = command?.kuyruk        ?? {};
-  const cagri   = command?.gunluk_cagri  ?? {};
-  const uyarilar = command?.uyarilar     ?? [];
+  /* ── Sekme 2: Personel Performansı — ilk kez açılınca yükle ── */
+  useEffect(() => {
+    if (activeTab !== "perf" || perfFetched) return;
+    setPerfLoading(true);
+    personnelApi.getList({ per_page: 100, page: 1 })
+      .then(r => {
+        setPerfData(r.data?.items ?? []);
+        setPerfFetched(true);
+      })
+      .catch(() => { setPerfData([]); setPerfFetched(true); })
+      .finally(() => setPerfLoading(false));
+  }, [activeTab, perfFetched]);
 
-  const HEALTH_CARDS = [
-    {
-      icon:  Server,
-      label: "Trunk Durumu",
-      value: trunk.aktif_kanal != null
-        ? `${trunk.aktif_kanal} / ${trunk.trunk_limiti ?? "?"}`
-        : "—",
-      sub:   trunk.yuzde != null ? `%${trunk.yuzde} kanal doluluk` : null,
-      extra: trunk.cpu > 0 ? `CPU %${trunk.cpu}  ·  RAM %${trunk.ram}` : null,
-      durum: trunk.alarm_aktif ? "kritik" : trunk.yuzde > 75 ? "uyari" : "ok",
-    },
-    {
-      icon:  Cpu,
-      label: "Sistem Kaynakları",
-      value: trunk.cpu != null && trunk.cpu > 0 ? `CPU  %${trunk.cpu}` : "—",
-      sub:   trunk.ram != null && trunk.ram > 0 ? `RAM  %${trunk.ram}` : null,
-      extra: null,
-      durum: (trunk.cpu > 85 || trunk.ram > 90) ? "kritik"
-           : (trunk.cpu > 70 || trunk.ram > 75) ? "uyari"
-           : "ok",
-    },
-    {
-      icon:  Shield,
-      label: "SLA Durumu",
-      value: sla.yuzde != null ? `%${sla.yuzde}` : "—",
-      sub:   `Hedef: %${sla.hedef_yuzde ?? 80}`,
-      extra: sla.karsilayan != null
-        ? `${sla.karsilayan} / ${sla.toplam ?? "?"} çağrı SLA'ya uydu`
-        : null,
-      durum: sla.alarm ? "kritik" : sla.yuzde < 80 ? "uyari" : "ok",
-    },
-    {
-      icon:  Phone,
-      label: "Günlük Çağrı",
-      value: cagri.bugun != null ? String(cagri.bugun) : "—",
-      sub:   cagri.degisim_pct != null
-        ? `${cagri.degisim_pct > 0 ? "+" : ""}${cagri.degisim_pct}%  dün'e göre`
-        : null,
-      extra: cagri.kacan != null
-        ? `${cagri.kacan} kaçan  ·  ${cagri.cevaplanan} cevaplanan`
-        : null,
-      durum: "ok",
-      trend: cagri.trend,
-    },
-    {
-      icon:  Clock,
-      label: "Kuyruk & Bekleme",
-      value: kuyruk.bekleyen != null ? `${kuyruk.bekleyen} bekliyor` : "—",
-      sub:   kuyruk.ort_bekleme_sn != null
-        ? `Ort. ${kuyruk.ort_bekleme_sn}sn bekleme`
-        : null,
-      extra: kuyruk.max_bekleme_sn
-        ? `Maks. ${kuyruk.max_bekleme_sn}sn`
-        : null,
-      durum: kuyruk.alarm ? "kritik"
-           : kuyruk.ort_bekleme_sn > 30 ? "uyari"
-           : "ok",
-    },
-  ];
+  /* ── Sekme 3: Trendler — ilk kez açılınca yükle ── */
+  useEffect(() => {
+    if (activeTab !== "trendler" || hourlyFetched) return;
+    setHourlyLoading(true);
+    overviewApi.getHourly()
+      .then(r => {
+        setHourlyData(Array.isArray(r.data) ? r.data : []);
+        setHourlyFetched(true);
+      })
+      .catch(() => { setHourlyData([]); setHourlyFetched(true); })
+      .finally(() => setHourlyLoading(false));
+  }, [activeTab, hourlyFetched]);
+
 
   return (
     <>
@@ -338,11 +203,6 @@ export default function AdminReports() {
         @keyframes rpSpin {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
-        }
-        @keyframes rpPulse {
-          0%   { box-shadow: 0 0 0 0   rgba(239,68,68,0.5); }
-          70%  { box-shadow: 0 0 0 6px rgba(239,68,68,0);   }
-          100% { box-shadow: 0 0 0 0   rgba(239,68,68,0);   }
         }
       `}</style>
 
@@ -363,169 +223,98 @@ export default function AdminReports() {
                 Sistem & Raporlar
               </h1>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: C.muted }}>
-                Sağlık monitörü · Saatlik trafik · Denetim logları
+                Supervisor denetim logları · Tarih filtresi · CSV export
               </p>
             </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
-            {/* Tarih aralığı filtresi */}
-            <DateRangePicker
-              value={dateRange}
-              onChange={(v) => { setDateRange(v); setAuditPage(1); }}
-              disabled={loading}
-            />
-
-            {lastSync && (
-              <span style={{ color: C.muted, fontSize: 11, display: "flex", alignItems: "center", gap: 4, paddingBottom: 8 }}>
-                <Clock size={11} />
-                {lastSync.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </span>
-            )}
-            <button
-              onClick={() => fetchAll(true)}
-              disabled={spinning}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 14px", borderRadius: 10,
-                border: `1px solid ${C.border}`,
-                background: "#ffffff", marginBottom: 0,
-                color: C.text, fontSize: 12, fontWeight: 700,
-                cursor: spinning ? "not-allowed" : "pointer",
-                opacity: spinning ? 0.6 : 1,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-              }}
-            >
-              <RefreshCw
-                size={13}
-                style={{ animation: spinning ? "rpSpin 1s linear infinite" : "none" }}
+          {/* Audit sekmesi kontrolleri */}
+          {activeTab === "audit" && (
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+              <DateRangePicker
+                value={dateRange}
+                onChange={(v) => { setDateRange(v); setAuditPage(1); }}
+                disabled={loading}
               />
-              Yenile
-            </button>
-            <button
-              onClick={() => exportCSV(auditLogs)}
-              disabled={auditLogs.length === 0}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 16px", borderRadius: 10,
-                border: `1px solid rgba(16,185,129,0.3)`,
-                background: "rgba(16,185,129,0.06)",
-                color: C.green, fontSize: 12, fontWeight: 700,
-                cursor: auditLogs.length === 0 ? "not-allowed" : "pointer",
-                opacity: auditLogs.length === 0 ? 0.45 : 1,
-                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-              }}
-            >
-              <Download size={13} />
-              CSV Dışa Aktar
-            </button>
-          </div>
-        </div>
-
-        {/* ── SİSTEM SAĞLIĞI KARTLARI ───────────────────────────────────────── */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
-          gap: 12,
-        }}>
-          {loading
-            ? Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} style={{
-                  background: "#ffffff", borderRadius: 14, padding: 16,
+              {lastSync && (
+                <span style={{ color: C.muted, fontSize: 11, display: "flex", alignItems: "center", gap: 4, paddingBottom: 8 }}>
+                  <Clock size={11} />
+                  {lastSync.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              )}
+              <button
+                onClick={() => fetchAll(true)}
+                disabled={spinning}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 14px", borderRadius: 10,
                   border: `1px solid ${C.border}`,
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-                }}>
-                  <Shimmer h={100} />
-                </div>
-              ))
-            : HEALTH_CARDS.map((card, i) => <HealthCard key={i} {...card} />)}
-        </div>
-
-        {/* ── UYARI BANNERLARI ──────────────────────────────────────────────── */}
-        {!loading && uyarilar.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {uyarilar.map((u, i) => {
-              const kritik = u.seviye === "kirmizi";
-              return (
-                <div key={i} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 16px", borderRadius: 10,
-                  background: kritik ? "rgba(239,68,68,0.05)" : "rgba(245,158,11,0.05)",
-                  border: `1px solid ${kritik ? "rgba(239,68,68,0.2)" : "rgba(245,158,11,0.2)"}`,
-                  borderLeft: `4px solid ${kritik ? C.red : C.yellow}`,
-                }}>
-                  <AlertTriangle size={14} color={kritik ? C.red : C.yellow} style={{ flexShrink: 0 }} />
-                  <span style={{ color: kritik ? "#b91c1c" : "#92400e", fontSize: 13, fontWeight: 600 }}>
-                    {u.mesaj}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* ── SAATLİK TRAFİK GRAFİĞİ ───────────────────────────────────────── */}
-        <Panel title="Saatlik Çağrı Yoğunluğu (Son 24 Saat)"
-          accentColor={C.blue}
-          badge={hourly.length > 0 ? `${hourly.length} saat` : null}>
-          {loading || hourly.length === 0 ? (
-            <Shimmer h={220} />
-          ) : (
-            <div style={{ width: "100%", height: 230, minHeight: 230, overflow: "hidden" }}>
-              <ResponsiveContainer width="100%" height={230}>
-                <AreaChart data={hourly} margin={{ top: 6, right: 6, left: -22, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="rp_toplam" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.blue}  stopOpacity={0.2} />
-                      <stop offset="95%" stopColor={C.blue}  stopOpacity={0.01} />
-                    </linearGradient>
-                    <linearGradient id="rp_cevaplanan" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.green} stopOpacity={0.2} />
-                      <stop offset="95%" stopColor={C.green} stopOpacity={0.01} />
-                    </linearGradient>
-                    <linearGradient id="rp_kacan" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor={C.red}   stopOpacity={0.18} />
-                      <stop offset="95%" stopColor={C.red}   stopOpacity={0.01} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
-                  <XAxis
-                    dataKey="saat"
-                    tick={{ fill: C.muted, fontSize: 10 }}
-                    axisLine={{ stroke: "rgba(0,0,0,0.07)" }}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    tick={{ fill: C.muted, fontSize: 10 }}
-                    axisLine={false} tickLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} cursor={{ stroke: "rgba(0,0,0,0.06)" }} />
-                  <Legend
-                    formatter={(val) => {
-                      const m = { toplam: "Toplam", cevaplanan: "Cevaplanan", kacan: "Kaçan" };
-                      return <span style={{ color: C.muted, fontSize: 11 }}>{m[val] ?? val}</span>;
-                    }}
-                  />
-                  <Area type="monotone" dataKey="toplam"
-                    stroke={C.blue} strokeWidth={2}
-                    fill="url(#rp_toplam)" dot={false}
-                    activeDot={{ r: 4, fill: C.blue, strokeWidth: 0 }} />
-                  <Area type="monotone" dataKey="cevaplanan"
-                    stroke={C.green} strokeWidth={2}
-                    fill="url(#rp_cevaplanan)" dot={false}
-                    activeDot={{ r: 4, fill: C.green, strokeWidth: 0 }} />
-                  <Area type="monotone" dataKey="kacan"
-                    stroke={C.red} strokeWidth={2}
-                    fill="url(#rp_kacan)" dot={false}
-                    activeDot={{ r: 4, fill: C.red, strokeWidth: 0 }} />
-                </AreaChart>
-              </ResponsiveContainer>
+                  background: "#ffffff",
+                  color: C.text, fontSize: 12, fontWeight: 700,
+                  cursor: spinning ? "not-allowed" : "pointer",
+                  opacity: spinning ? 0.6 : 1,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+                }}
+              >
+                <RefreshCw size={13} style={{ animation: spinning ? "rpSpin 1s linear infinite" : "none" }} />
+                Yenile
+              </button>
+              <button
+                onClick={() => exportCSV(auditLogs)}
+                disabled={auditLogs.length === 0}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "8px 16px", borderRadius: 10,
+                  border: "1px solid rgba(16,185,129,0.3)",
+                  background: "rgba(16,185,129,0.06)",
+                  color: C.green, fontSize: 12, fontWeight: 700,
+                  cursor: auditLogs.length === 0 ? "not-allowed" : "pointer",
+                  opacity: auditLogs.length === 0 ? 0.45 : 1,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                }}
+              >
+                <Download size={13} />
+                CSV Dışa Aktar
+              </button>
             </div>
           )}
-        </Panel>
+        </div>
+
+        {/* ── SEKME ÇUBUĞU ──────────────────────────────────────────────────── */}
+        <div style={{
+          display: "flex", gap: 4,
+          background: "#f8fafc",
+          border: `1px solid ${C.border}`,
+          borderRadius: 12, padding: 4,
+          width: "fit-content",
+        }}>
+          {TABS.map(({ id, label, Icon }) => {
+            const active = activeTab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7,
+                  padding: "7px 16px", borderRadius: 8,
+                  border: "none",
+                  background: active ? "#ffffff" : "transparent",
+                  boxShadow: active ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                  color: active ? C.text : C.muted,
+                  fontSize: 12, fontWeight: active ? 700 : 600,
+                  cursor: "pointer", transition: "all 0.15s",
+                  borderTop: active ? `2px solid ${C.purple}` : "2px solid transparent",
+                }}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
 
         {/* ── DENETİM LOG TABLOSU ───────────────────────────────────────────── */}
+        {activeTab === "audit" && (<>
         <Panel
           title={`Denetim Logları  ·  ${dateRange.from}  →  ${dateRange.to}`}
           accentColor={C.purple}
@@ -734,6 +523,152 @@ export default function AdminReports() {
             </>
           )}
         </Panel>
+        </>)}
+
+        {/* ── PERSONEL PERFORMANSI (Sekme 2) ───────────────────────────────── */}
+        {activeTab === "perf" && (
+          <Panel title="Personel Performans Tablosu" accentColor={C.active}
+            badge={perfData.length > 0 ? `${perfData.length} personel` : null}
+            noPad>
+            {perfLoading ? (
+              <div style={{ padding: 16 }}><Shimmer h={200} /></div>
+            ) : perfData.length === 0 ? (
+              <div style={{ padding: "48px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+                <Users size={28} color={C.faint} style={{ marginBottom: 8, display: "block", margin: "0 auto 8px" }} />
+                Personel verisi bulunamadı.
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {["Personel","Ekip","Rol","Anlık Durum","Bugün Çağrı","XP","Seviye"].map((h) => (
+                        <th key={h} style={{
+                          padding: "10px 16px", textAlign: "left",
+                          color: C.muted, fontWeight: 700, fontSize: 10,
+                          letterSpacing: "0.08em", textTransform: "uppercase",
+                          borderBottom: `1px solid ${C.border}`,
+                          background: "#f8fafc", whiteSpace: "nowrap",
+                          position: "sticky", top: 0,
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {perfData.map((p, i) => {
+                      const durumColor = {
+                        aktif:   C.active,
+                        mesgul:  C.busy,
+                        mola:    C.break,
+                        offline: C.offline,
+                      }[p.anlik_durum] || C.muted;
+                      return (
+                        <tr key={p.id ?? i}
+                          style={{ borderBottom: `1px solid ${C.borderL}`, transition: "background 0.12s" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.015)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "9px 16px", color: C.text, fontWeight: 600 }}>
+                            {p.ad_soyad ?? "—"}
+                          </td>
+                          <td style={{ padding: "9px 16px", color: C.muted, fontSize: 11 }}>
+                            {p.ekip ?? "—"}
+                          </td>
+                          <td style={{ padding: "9px 16px" }}>
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, borderRadius: 99, padding: "2px 8px",
+                              background: p.rol === "supervisor" ? "rgba(99,102,241,0.08)" : "rgba(16,185,129,0.08)",
+                              color:      p.rol === "supervisor" ? "#6366f1" : C.active,
+                              border: `1px solid ${p.rol === "supervisor" ? "rgba(99,102,241,0.2)" : "rgba(16,185,129,0.2)"}`,
+                            }}>
+                              {p.rol === "supervisor" ? "Süpervizör" : "Personel"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 16px" }}>
+                            <span style={{
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              fontSize: 10, fontWeight: 700,
+                              color: durumColor,
+                            }}>
+                              <span style={{
+                                width: 6, height: 6, borderRadius: "50%",
+                                background: durumColor, flexShrink: 0,
+                              }} />
+                              {p.anlik_durum ?? "—"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "9px 16px", color: C.text, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                            {p.bugun_cagri ?? 0}
+                          </td>
+                          <td style={{ padding: "9px 16px", color: C.purple, fontWeight: 700 }}>
+                            {(p.xp ?? 0).toLocaleString("tr-TR")}
+                          </td>
+                          <td style={{ padding: "9px 16px", color: C.muted, fontSize: 11 }}>
+                            Lv {p.seviye ?? 1}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        )}
+
+        {/* ── TRENDLER (Sekme 3) ────────────────────────────────────────────── */}
+        {activeTab === "trendler" && (
+          <Panel title="Saatlik Çağrı Trendi — Bugün"
+            accentColor={C.busy}
+            badge={hourlyData.length > 0 ? `${hourlyData.length} saat` : null}>
+            {hourlyLoading ? (
+              <Shimmer h={280} />
+            ) : hourlyData.length === 0 ? (
+              <div style={{ padding: "48px 0", textAlign: "center", color: C.muted, fontSize: 13 }}>
+                <TrendingUp size={28} color={C.faint} style={{ display: "block", margin: "0 auto 8px" }} />
+                Bugün için saatlik veri bulunamadı.
+              </div>
+            ) : (
+              <div style={{ width: "100%", height: 280 }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={hourlyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+                    <XAxis
+                      dataKey="saat"
+                      tick={{ fill: C.muted, fontSize: 10 }}
+                      axisLine={false} tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tick={{ fill: C.muted, fontSize: 10 }}
+                      axisLine={false} tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#fff", border: `1px solid ${C.border}`,
+                        borderRadius: 10, fontSize: 12,
+                        boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
+                      }}
+                    />
+                    <Legend
+                      formatter={(val) => {
+                        const m = { toplam: "Toplam", cevaplanan: "Cevaplanan", kacan: "Kaçan" };
+                        return <span style={{ fontSize: 11, color: C.muted }}>{m[val] ?? val}</span>;
+                      }}
+                    />
+                    <Bar dataKey="cevaplanan" name="Cevaplanan" fill={C.active}
+                      radius={[3, 3, 0, 0]} maxBarSize={24} />
+                    <Bar dataKey="kacan" name="Kaçan" fill={C.alarm}
+                      radius={[3, 3, 0, 0]} maxBarSize={24} />
+                    <Bar dataKey="toplam" name="Toplam" fill={C.busy}
+                      fillOpacity={0.35} radius={[3, 3, 0, 0]} maxBarSize={24} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </Panel>
+        )}
 
       </div>
     </>

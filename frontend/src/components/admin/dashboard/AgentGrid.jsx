@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Phone, Search, Star, WifiOff, Coffee } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, Coffee, Phone, Search, Star, WifiOff } from "lucide-react";
+
+const PAGE_SIZE = 20;
 
 const DURUM = {
   aktif:   { color: "#10b981", bg: "rgba(16,185,129,0.08)",  border: "rgba(16,185,129,0.2)",  label: "Aktif"       },
@@ -234,6 +236,7 @@ function FilterChip({ label, count, color, active, onClick }) {
 export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
   const [search,      setSearch]      = useState("");
   const [durumFilter, setDurumFilter] = useState("tumu");
+  const [page,        setPage]        = useState(1);
 
   const list = agents || [];
 
@@ -253,6 +256,17 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
       || a.dahili_no?.includes(q);
     return match && (durumFilter === "tumu" || a.anlik_durum === durumFilter);
   });
+
+  // Sayfalama
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Filtre/search değişirse sayfayı 1'e döndür
+  useEffect(() => { setPage(1); }, [search, durumFilter]);
+  // Sayfa toplam sayfa sınırını aşarsa düzelt
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const visible   = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
   const CHIPS = [
     { key: "tumu",    label: "Tümü",      color: "#64748b", count: list.length   },
@@ -303,10 +317,10 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
       </div>
 
       {/* Tablo */}
-      <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
         <TableHeader />
 
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {filtered.length === 0 ? (
             <div style={{
               textAlign: "center", color: "#94a3b8",
@@ -315,7 +329,7 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
               {search ? `"${search}" için sonuç bulunamadı` : "Personel bulunamadı"}
             </div>
           ) : (
-            filtered.map((agent) => (
+            visible.map((agent) => (
               <AgentRow
                 key={agent.id}
                 agent={agent}
@@ -325,6 +339,85 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
             ))
           )}
         </div>
+
+        {/* Sayfalama */}
+        {filtered.length > PAGE_SIZE && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={filtered.length}
+            pageStart={pageStart}
+            visibleCount={visible.length}
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Sayfalama (alt footer) ───────────────────────────────────────────────── */
+function Pagination({ page, totalPages, total, pageStart, visibleCount, onPrev, onNext }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      gap: 8, marginTop: 8,
+      padding: "8px 12px",
+      borderTop: "1px solid rgba(0,0,0,0.06)",
+      background: "#fafbfc",
+      borderRadius: "0 0 10px 10px",
+    }}>
+      <span style={{
+        fontSize: 11, color: "#64748b", fontVariantNumeric: "tabular-nums",
+      }}>
+        <strong style={{ color: "#0f172a" }}>{pageStart + 1}–{pageStart + visibleCount}</strong>
+        {" / "}
+        <strong style={{ color: "#0f172a" }}>{total}</strong>
+        {" "}kayıt
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <button
+          onClick={onPrev}
+          disabled={page <= 1}
+          style={{
+            width: 26, height: 26, borderRadius: 7,
+            border: "1px solid rgba(0,0,0,0.08)",
+            background: page <= 1 ? "#f8fafc" : "#fff",
+            color: page <= 1 ? "#cbd5e1" : "#475569",
+            cursor: page <= 1 ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => { if (page > 1) e.currentTarget.style.color = "#10b981"; }}
+          onMouseLeave={(e) => { if (page > 1) e.currentTarget.style.color = "#475569"; }}
+        >
+          <ChevronLeft size={13} />
+        </button>
+        <span style={{
+          fontSize: 11, fontWeight: 700, color: "#0f172a",
+          padding: "0 8px", fontVariantNumeric: "tabular-nums",
+          minWidth: 50, textAlign: "center",
+        }}>
+          {page} / {totalPages}
+        </span>
+        <button
+          onClick={onNext}
+          disabled={page >= totalPages}
+          style={{
+            width: 26, height: 26, borderRadius: 7,
+            border: "1px solid rgba(0,0,0,0.08)",
+            background: page >= totalPages ? "#f8fafc" : "#fff",
+            color: page >= totalPages ? "#cbd5e1" : "#475569",
+            cursor: page >= totalPages ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => { if (page < totalPages) e.currentTarget.style.color = "#10b981"; }}
+          onMouseLeave={(e) => { if (page < totalPages) e.currentTarget.style.color = "#475569"; }}
+        >
+          <ChevronRight size={13} />
+        </button>
       </div>
     </div>
   );

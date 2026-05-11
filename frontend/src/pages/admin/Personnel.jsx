@@ -834,37 +834,95 @@ function MatrisTab({ isAdmin }) {
   };
 
   const STAT_CARDS = [
-    { label:"Tümü",       key:"",       val: liveStats.toplam,  textColor:"#1e293b"  },
-    { label:"Aktif",      key:"aktif",  val: liveStats.aktif,   textColor:"#065f46"  },
-    { label:"Görüşmede",  key:"mesgul", val: liveStats.mesgul,  textColor:"#1d4ed8"  },
-    { label:"Molada",     key:"mola",   val: liveStats.mola,    textColor:"#b45309"  },
-    { label:"Offline",    key:"offline",val: liveStats.offline, textColor:"#475569"  },
+    { label:"Tümü",      key:"",        val: liveStats.toplam,  color:"#6366f1", icon: Users        },
+    { label:"Aktif",     key:"aktif",   val: liveStats.aktif,   color:"#10b981", icon: CheckCircle2 },
+    { label:"Görüşmede", key:"mesgul",  val: liveStats.mesgul,  color:"#3b82f6", icon: Headphones   },
+    { label:"Molada",    key:"mola",    val: liveStats.mola,    color:"#f59e0b", icon: Coffee       },
+    { label:"Offline",   key:"offline", val: liveStats.offline, color:"#94a3b8", icon: WifiOff      },
   ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <style>{`
+        @media (max-width: 920px) {
+          .pp-stats-grid { grid-template-columns: repeat(3, 1fr) !important; }
+        }
+        @media (max-width: 600px) {
+          .pp-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
       {/* ── Stats Bar ─────────────────────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
+      <div className="pp-stats-grid" style={{
+        display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10,
+      }}>
         {STAT_CARDS.map(c => {
           const active = params.durum === c.key;
+          const Icon   = c.icon;
           return (
             <button
               key={c.key}
               onClick={() => { setParams(p=>({...p,durum:c.key})); setPage(1); }}
               style={{
-                ...S.card,
-                padding: 16, textAlign: "left", cursor: "pointer",
-                transition: "all 0.15s", border: "1px solid",
-                borderColor: active ? "#818cf8" : "#f1f5f9",
+                background: active
+                  ? `linear-gradient(135deg, #fff 0%, ${c.color}10 100%)`
+                  : `linear-gradient(135deg, #fff 0%, ${c.color}06 100%)`,
+                border: `1px solid ${c.color}${active ? "55" : "25"}`,
+                borderTop: `3px solid ${c.color}`,
+                borderRadius: 12,
+                padding: "13px 16px", textAlign: "left", cursor: "pointer",
+                transition: "transform 0.18s, box-shadow 0.18s",
                 boxShadow: active
-                  ? "0 0 0 2px rgba(99,102,241,0.25), 0 1px 3px rgba(0,0,0,0.06)"
-                  : "0 1px 3px rgba(0,0,0,0.06)",
+                  ? `0 4px 14px ${c.color}25, 0 1px 4px rgba(0,0,0,0.05)`
+                  : `0 1px 4px rgba(0,0,0,0.04)`,
+                display: "flex", alignItems: "center", gap: 12,
+                position: "relative", overflow: "hidden",
+                fontFamily: "inherit",
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = active ? "0 0 0 2px rgba(99,102,241,0.25), 0 1px 3px rgba(0,0,0,0.06)" : "0 1px 3px rgba(0,0,0,0.06)"; }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = `0 6px 18px ${c.color}28, 0 1px 4px rgba(0,0,0,0.06)`;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = "";
+                e.currentTarget.style.boxShadow = active
+                  ? `0 4px 14px ${c.color}25, 0 1px 4px rgba(0,0,0,0.05)`
+                  : `0 1px 4px rgba(0,0,0,0.04)`;
+              }}
             >
-              <p style={{ fontSize: 24, fontWeight: 800, color: c.textColor }}>{c.val ?? "—"}</p>
-              <p style={{ fontSize: 11, fontWeight: 600, color: "#64748b", marginTop: 2 }}>{c.label}</p>
+              {/* Radial glow */}
+              <div style={{
+                position: "absolute", top: -16, right: -16,
+                width: 60, height: 60, borderRadius: "50%",
+                background: `radial-gradient(circle, ${c.color}15 0%, transparent 70%)`,
+                pointerEvents: "none",
+              }} />
+              {/* İkon kutu */}
+              <div style={{
+                width: 38, height: 38, borderRadius: 10,
+                background: `${c.color}14`,
+                border: `1px solid ${c.color}22`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0, position: "relative", zIndex: 1,
+              }}>
+                <Icon size={17} color={c.color} strokeWidth={2.4} />
+              </div>
+              {/* Sayı + label */}
+              <div style={{ minWidth: 0, position: "relative", zIndex: 1 }}>
+                <p style={{
+                  fontSize: 22, fontWeight: 800, color: c.color,
+                  lineHeight: 1, margin: 0,
+                  fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em",
+                }}>
+                  {c.val ?? "—"}
+                </p>
+                <p style={{
+                  fontSize: 10, fontWeight: 700, color: "#64748b",
+                  marginTop: 5, margin: 0, marginTop: 5,
+                  textTransform: "uppercase", letterSpacing: "0.05em",
+                }}>
+                  {c.label}
+                </p>
+              </div>
             </button>
           );
         })}
@@ -925,21 +983,40 @@ function MatrisTab({ isAdmin }) {
               <X size={11} /> Temizle
             </button>
           )}
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500 }}>{loading ? "…" : `${total} personel`}</span>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{
+              fontSize: 11, color: "#64748b", fontWeight: 700,
+              background: "#f8fafc",
+              border: "1px solid rgba(0,0,0,0.07)",
+              padding: "4px 10px", borderRadius: 99,
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {loading ? "…" : `${total} personel`}
+            </span>
             <button
               onClick={() => fetchList(true)}
               disabled={refreshing}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 12px", fontSize: 11, fontWeight: 600, color: "#64748b",
-                border: "1px solid #e2e8f0", borderRadius: 8, background: "#ffffff",
-                cursor: "pointer", opacity: refreshing ? 0.5 : 1,
+                padding: "8px 14px", fontSize: 11.5, fontWeight: 700, color: "#0f172a",
+                border: "1px solid rgba(0,0,0,0.1)", borderRadius: 10, background: "#ffffff",
+                cursor: refreshing ? "not-allowed" : "pointer",
+                opacity: refreshing ? 0.5 : 1,
+                transition: "all 0.15s",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
               }}
-              onMouseEnter={e => !refreshing && (e.currentTarget.style.background = "#f8fafc")}
-              onMouseLeave={e => e.currentTarget.style.background = "#ffffff"}
+              onMouseEnter={e => {
+                if (!refreshing) {
+                  e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)";
+                  e.currentTarget.style.color = "#6366f1";
+                }
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = "rgba(0,0,0,0.1)";
+                e.currentTarget.style.color = "#0f172a";
+              }}
             >
-              <RefreshCw size={12} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
+              <RefreshCw size={13} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
               Yenile
             </button>
             {isAdmin && (
@@ -947,13 +1024,23 @@ function MatrisTab({ isAdmin }) {
                 onClick={() => setYeniPersonelOpen(true)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#ffffff",
-                  background: "#059669", border: "none", borderRadius: 8, cursor: "pointer",
+                  padding: "8px 16px", fontSize: 11.5, fontWeight: 800, color: "#ffffff",
+                  background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+                  border: "none", borderRadius: 10, cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(16,185,129,0.28)",
+                  transition: "all 0.15s",
+                  letterSpacing: "0.01em",
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = "#047857"}
-                onMouseLeave={e => e.currentTarget.style.background = "#059669"}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 4px 14px rgba(16,185,129,0.4)";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 2px 8px rgba(16,185,129,0.28)";
+                }}
               >
-                <Plus size={12} /> Yeni Personel
+                <Plus size={13} strokeWidth={2.6} /> Yeni Personel
               </button>
             )}
           </div>
@@ -1208,7 +1295,7 @@ function AttendanceCell({ dayData, isToday, isSelected, onClick }) {
     return (
       <div style={{
         height: 72, borderRadius: 8, border: "1px dashed #e2e8f0",
-        background: "rgba(248,250,252,0.6)",
+        background: "rgba(248,250,252,0.4)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <span style={{ color: "#cbd5e1", fontSize: 11 }}>—</span>
@@ -1220,17 +1307,34 @@ function AttendanceCell({ dayData, isToday, isSelected, onClick }) {
       <div
         onClick={onClick}
         style={{
-          height: 72, borderRadius: 8, border: "1px solid #fca5a5",
-          background: "#fef2f2", display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", gap: 2,
-          cursor: "pointer",
-          boxShadow: isSelected ? "0 0 0 2px #f87171, 0 0 0 3px #fff0f0" : "none",
+          height: 72, borderRadius: 8,
+          border: "1.5px dashed rgba(239,68,68,0.35)",
+          background: "rgba(239,68,68,0.04)",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 4,
+          cursor: "pointer", transition: "all 0.15s",
+          boxShadow: isSelected
+            ? "0 0 0 2px #f87171, 0 0 0 3px rgba(239,68,68,0.15)"
+            : "none",
         }}
-        onMouseEnter={e => e.currentTarget.style.borderColor = "#f87171"}
-        onMouseLeave={e => e.currentTarget.style.borderColor = "#fca5a5"}
+        onMouseEnter={e => {
+          e.currentTarget.style.borderColor = "rgba(239,68,68,0.55)";
+          e.currentTarget.style.background   = "rgba(239,68,68,0.07)";
+          e.currentTarget.style.transform    = "translateY(-1px)";
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.borderColor = "rgba(239,68,68,0.35)";
+          e.currentTarget.style.background   = "rgba(239,68,68,0.04)";
+          e.currentTarget.style.transform    = "none";
+        }}
       >
-        <XCircle size={18} style={{ color: "#fca5a5" }} />
-        <span style={{ fontSize: 9, fontWeight: 700, color: "#f87171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Devamsız</span>
+        <XCircle size={16} style={{ color: "#f87171", opacity: 0.7 }} strokeWidth={2} />
+        <span style={{
+          fontSize: 9, fontWeight: 800, color: "#dc2626",
+          textTransform: "uppercase", letterSpacing: "0.06em",
+        }}>
+          Devamsız
+        </span>
       </div>
     );
   }
@@ -1240,11 +1344,32 @@ function AttendanceCell({ dayData, isToday, isSelected, onClick }) {
       onClick={onClick}
       style={{
         position: "relative", height: 72, borderRadius: 8, padding: 8,
-        cursor: "pointer", userSelect: "none", transition: "all 0.15s",
+        cursor: "pointer", userSelect: "none",
+        transition: "transform 0.15s, box-shadow 0.15s, border-color 0.15s",
         border: "1px solid",
         borderColor: hasAny ? "#fcd34d" : isToday && !hasAny ? "#a5b4fc" : "#f1f5f9",
-        background: hasAny ? "rgba(245,158,11,0.05)" : isToday && !hasAny ? "rgba(99,102,241,0.05)" : "#ffffff",
+        background: hasAny
+          ? "linear-gradient(135deg, #fff 0%, rgba(245,158,11,0.08) 100%)"
+          : isToday && !hasAny
+            ? "linear-gradient(135deg, #fff 0%, rgba(99,102,241,0.06) 100%)"
+            : "#ffffff",
         boxShadow: isSelected ? "0 0 0 2px #6366f1, 0 0 0 3px #eef2ff" : "none",
+      }}
+      onMouseEnter={e => {
+        if (isSelected) return;
+        e.currentTarget.style.transform = "translateY(-1px)";
+        e.currentTarget.style.boxShadow = hasAny
+          ? "0 4px 10px rgba(245,158,11,0.18)"
+          : "0 4px 10px rgba(99,102,241,0.12)";
+        e.currentTarget.style.borderColor = hasAny ? "#f59e0b" : "#6366f1";
+      }}
+      onMouseLeave={e => {
+        if (isSelected) return;
+        e.currentTarget.style.transform = "none";
+        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.borderColor = hasAny
+          ? "#fcd34d"
+          : isToday && !hasAny ? "#a5b4fc" : "#f1f5f9";
       }}
     >
       {dayData.bov && (
@@ -1262,6 +1387,86 @@ function AttendanceCell({ dayData, isToday, isSelected, onClick }) {
         {dayData.late > 5  && <div style={{ display: "flex", alignItems: "center", gap: 2 }}><span style={{ color: "#ef4444", fontSize: 10, fontWeight: 700 }}>▲</span><span style={{ color: "#ef4444", fontSize: 10, fontWeight: 600 }}>+{dayData.late}dk</span></div>}
         {dayData.early > 10 && <div style={{ display: "flex", alignItems: "center", gap: 2 }}><span style={{ color: "#f97316", fontSize: 10, fontWeight: 700 }}>▼</span><span style={{ color: "#f97316", fontSize: 10, fontWeight: 600 }}>-{dayData.early}dk</span></div>}
         {dayData.bov && !dayData.late && !dayData.early && <div style={{ display: "flex", alignItems: "center", gap: 2 }}><Clock size={9} style={{ color: "#f87171" }}/><span style={{ color: "#f87171", fontSize: 10, fontWeight: 600 }}>{dayData.brk}dk mola</span></div>}
+      </div>
+    </div>
+  );
+}
+
+function WeekSummaryPanel({ stats, loading }) {
+  const ITEMS = [
+    { key: "plan",   label: "Toplam Plan",   value: stats.plan,   color: "#6366f1", Icon: Clock        },
+    { key: "gec",    label: "Gecikme",       value: stats.gec,    color: "#ef4444", Icon: AlertTriangle, suffix: "▲" },
+    { key: "erken",  label: "Erken Çıkış",   value: stats.erken,  color: "#f97316", Icon: ChevronDown,   suffix: "▼" },
+    { key: "mola",   label: "Mola Aşımı",    value: stats.mola,   color: "#dc2626", Icon: Coffee       },
+    { key: "devam",  label: "Devamsız",      value: stats.devam,  color: "#f87171", Icon: XCircle      },
+  ];
+  return (
+    <div style={{
+      background: "#ffffff",
+      border: "1px solid #f1f5f9",
+      borderTop: "3px solid #6366f1",
+      borderRadius: 12,
+      padding: 14,
+      display: "flex", flexDirection: "column", gap: 8,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        paddingBottom: 8, marginBottom: 2,
+        borderBottom: "1px solid #f1f5f9",
+      }}>
+        <Info size={12} color="#6366f1" />
+        <span style={{
+          fontSize: 10, fontWeight: 800, color: "#6366f1",
+          textTransform: "uppercase", letterSpacing: "0.06em",
+        }}>
+          Hafta Özeti
+        </span>
+      </div>
+      {ITEMS.map(({ key, label, value, color, Icon, suffix }) => (
+        <div key={key} style={{
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "6px 8px", borderRadius: 8,
+          background: `${color}06`,
+          border: `1px solid ${color}15`,
+        }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 7,
+            background: `${color}14`,
+            border: `1px solid ${color}22`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            <Icon size={13} color={color} strokeWidth={2.4} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, color: "#64748b",
+              textTransform: "uppercase", letterSpacing: "0.04em",
+            }}>
+              {label}
+            </div>
+          </div>
+          <div style={{
+            fontSize: 16, fontWeight: 800, color,
+            fontVariantNumeric: "tabular-nums",
+            display: "flex", alignItems: "center", gap: 3,
+          }}>
+            {suffix && <span style={{ fontSize: 10 }}>{suffix}</span>}
+            {loading ? "…" : value}
+          </div>
+        </div>
+      ))}
+      <div style={{
+        marginTop: 4, padding: "8px 10px",
+        background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%)",
+        border: "1px dashed #c7d2fe",
+        borderRadius: 8,
+        fontSize: 10.5, color: "#475569", lineHeight: 1.4,
+        textAlign: "center",
+      }}>
+        <Info size={11} color="#6366f1" style={{ verticalAlign: -1, marginRight: 4 }} />
+        Detay için hücreye tıklayın
       </div>
     </div>
   );
@@ -1387,56 +1592,128 @@ function VardiyaTab() {
     });
   }, [weekOffset]);
 
-  const totalViol = personList.reduce((s, p) => {
+  // Hafta özet stat'ları (sağ panelde gösterilir)
+  const weekStats = personList.reduce((acc, p) => {
     const days = attendance[p.id] || [];
-    return s + days.filter(d => d.planned && (!d.actual_in || d.late > 5 || d.bov)).length;
-  }, 0);
+    days.forEach(d => {
+      if (!d.planned) return;
+      acc.plan += 1;
+      if (!d.actual_in)     acc.devam += 1;
+      else {
+        if (d.late  > 5)    acc.gec   += 1;
+        if (d.early > 10)   acc.erken += 1;
+        if (d.bov)          acc.mola  += 1;
+      }
+    });
+    return acc;
+  }, { plan: 0, gec: 0, erken: 0, mola: 0, devam: 0 });
+
+  const totalViol = weekStats.gec + weekStats.erken + weekStats.mola + weekStats.devam;
 
   return (
     <div style={{ display: "flex", gap: 20 }}>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
         {/* Hafta başlığı */}
-        <div style={{ ...S.card, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <p style={{ fontWeight: 700, color: "#0f172a", fontSize: 13 }}>{weekLabel}</p>
-            <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>
-              {loading ? "Yükleniyor…" : <><strong style={{ color: "#ef4444" }}>{totalViol}</strong> devam ihlali</>}
-            </p>
+        <div style={{
+          background: "linear-gradient(135deg, #fff 0%, rgba(99,102,241,0.04) 100%)",
+          border: "1px solid #f1f5f9",
+          borderTop: "3px solid #6366f1",
+          borderRadius: 12,
+          padding: "14px 20px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexWrap: "wrap", gap: 12,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: "rgba(99,102,241,0.12)",
+              border: "1px solid rgba(99,102,241,0.22)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0,
+            }}>
+              <Clock size={16} color="#6366f1" strokeWidth={2.4} />
+            </div>
+            <div>
+              <p style={{
+                fontWeight: 800, color: "#0f172a", fontSize: 13.5,
+                margin: 0, letterSpacing: "-0.01em",
+              }}>
+                {weekLabel}
+              </p>
+              <p style={{ fontSize: 11, color: "#94a3b8", margin: "2px 0 0", fontWeight: 500 }}>
+                {loading
+                  ? "Yükleniyor…"
+                  : totalViol > 0
+                    ? <><strong style={{ color: "#ef4444" }}>{totalViol}</strong> devam ihlali tespit edildi</>
+                    : <span style={{ color: "#10b981", fontWeight: 700 }}>Hafta temiz · ihlal yok</span>}
+              </p>
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4,
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 10, padding: 3,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+          }}>
             <button
               onClick={() => setWeekOffset(o => o - 1)}
+              title="Önceki hafta"
               style={{
-                padding: 6, borderRadius: 8, border: "1px solid #e2e8f0",
-                color: "#94a3b8", background: "#ffffff", cursor: "pointer",
+                padding: 6, borderRadius: 7, border: "none",
+                color: "#94a3b8", background: "transparent", cursor: "pointer",
                 display: "flex", alignItems: "center",
+                transition: "all 0.15s",
               }}
-              onMouseEnter={e => e.currentTarget.style.color = "#475569"}
-              onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = "#6366f1";
+                e.currentTarget.style.background = "rgba(99,102,241,0.08)";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = "#94a3b8";
+                e.currentTarget.style.background = "transparent";
+              }}
             >
               <ChevronLeft size={14}/>
             </button>
             <button
               onClick={() => setWeekOffset(0)}
+              disabled={weekOffset === 0}
               style={{
-                fontSize: 11, fontWeight: 600, padding: "4px 8px", borderRadius: 8,
-                border: "1px solid", cursor: "pointer", transition: "all 0.15s",
-                borderColor: weekOffset === 0 ? "#a5b4fc" : "#e2e8f0",
-                background: weekOffset === 0 ? "#eef2ff" : "#ffffff",
+                fontSize: 11, fontWeight: 800, padding: "5px 12px", borderRadius: 7,
+                border: "none", cursor: weekOffset === 0 ? "default" : "pointer",
+                transition: "all 0.15s", letterSpacing: "0.02em",
+                background: weekOffset === 0
+                  ? "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)"
+                  : "transparent",
                 color: weekOffset === 0 ? "#4f46e5" : "#64748b",
+                boxShadow: weekOffset === 0 ? "inset 0 0 0 1px rgba(99,102,241,0.25)" : "none",
               }}
             >
-              {weekOffset === 0 ? "Bu Hafta" : weekOffset < 0 ? `${-weekOffset} hafta önce` : `${weekOffset} hafta sonra`}
+              {weekOffset === 0
+                ? "Bu Hafta"
+                : weekOffset < 0
+                  ? `${-weekOffset} hafta önce`
+                  : `${weekOffset} hafta sonra`}
             </button>
             <button
               onClick={() => setWeekOffset(o => o + 1)}
+              title="Sonraki hafta"
               style={{
-                padding: 6, borderRadius: 8, border: "1px solid #e2e8f0",
-                color: "#94a3b8", background: "#ffffff", cursor: "pointer",
+                padding: 6, borderRadius: 7, border: "none",
+                color: "#94a3b8", background: "transparent", cursor: "pointer",
                 display: "flex", alignItems: "center",
+                transition: "all 0.15s",
               }}
-              onMouseEnter={e => e.currentTarget.style.color = "#475569"}
-              onMouseLeave={e => e.currentTarget.style.color = "#94a3b8"}
+              onMouseEnter={e => {
+                e.currentTarget.style.color = "#6366f1";
+                e.currentTarget.style.background = "rgba(99,102,241,0.08)";
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = "#94a3b8";
+                e.currentTarget.style.background = "transparent";
+              }}
             >
               <ChevronRight size={14}/>
             </button>
@@ -1444,14 +1721,46 @@ function VardiyaTab() {
         </div>
 
         {/* Legend */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 10, color: "#94a3b8", padding: "0 4px", flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#ef4444", fontWeight: 700 }}>▲</span> Geç (&gt;5dk)</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ color: "#f97316", fontWeight: 700 }}>▼</span> Erken (&gt;10dk)</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 16, height: 16, borderRadius: "50%", background: "#ef4444", color: "#fff", fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>!</span>
-            Mola Aşımı
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 14px", flexWrap: "wrap",
+          background: "#f8fafc",
+          border: "1px solid rgba(0,0,0,0.05)",
+          borderRadius: 10,
+        }}>
+          <span style={{
+            fontSize: 9, fontWeight: 800, color: "#94a3b8",
+            textTransform: "uppercase", letterSpacing: "0.08em",
+            marginRight: 4,
+          }}>
+            Açıklama
           </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 4 }}><XCircle size={11} style={{ color: "#f87171" }}/> Devamsız</span>
+          {[
+            { ico: "▲", txt: "Geç (>5dk)",  c: "#ef4444" },
+            { ico: "▼", txt: "Erken (>10dk)", c: "#f97316" },
+            { ico: "!", txt: "Mola Aşımı",  c: "#dc2626", dot: true },
+            { ico: "✕", txt: "Devamsız",   c: "#f87171" },
+          ].map(({ ico, txt, c, dot }) => (
+            <span key={txt} style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "3px 9px", borderRadius: 99,
+              background: `${c}10`,
+              border: `1px solid ${c}25`,
+              fontSize: 10.5, fontWeight: 700, color: c,
+            }}>
+              {dot ? (
+                <span style={{
+                  width: 12, height: 12, borderRadius: "50%",
+                  background: c, color: "#fff",
+                  fontSize: 8, fontWeight: 800,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}>{ico}</span>
+              ) : (
+                <span>{ico}</span>
+              )}
+              {txt}
+            </span>
+          ))}
         </div>
 
         {/* Matris tablosu */}
@@ -1551,9 +1860,11 @@ function VardiyaTab() {
         </div>
       </div>
 
-      {/* Detay paneli */}
-      <div style={{ width: 220, flexShrink: 0 }}>
-        <DayDetailPanel sel={selected} onClose={() => setSelected(null)} />
+      {/* Sağ panel: seçili yoksa haftalık özet, varsa detay */}
+      <div style={{ width: 240, flexShrink: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+        {selected
+          ? <DayDetailPanel sel={selected} onClose={() => setSelected(null)} />
+          : <WeekSummaryPanel stats={weekStats} loading={loading} />}
       </div>
     </div>
   );
@@ -1572,33 +1883,77 @@ export default function PersonnelPage() {
   const [tab, setTab] = useState("matris");
 
   return (
-    <div style={{ minHeight: "100%", paddingBottom: 32, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ minHeight: "100%", paddingBottom: 32, display: "flex", flexDirection: "column", gap: 18 }}>
       {/* Başlık */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", margin: 0 }}>
-            Personel Yönetim Merkezi
-          </h1>
-          <p style={{ fontSize: 13, color: "#94a3b8", marginTop: 2 }}>
-            Müşteri Hizmetleri · ekip, rol, vardiya ve devamlılık yönetimi
-          </p>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        gap: 12, flexWrap: "wrap",
+        paddingBottom: 4,
+        borderBottom: "1px solid rgba(0,0,0,0.05)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(99,102,241,0.28) 100%)",
+            border: "1px solid rgba(99,102,241,0.32)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: "0 2px 10px rgba(99,102,241,0.18)",
+            flexShrink: 0,
+          }}>
+            <Users size={20} color="#6366f1" strokeWidth={2.4} />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h1 style={{
+                fontSize: 20, fontWeight: 800, color: "#0f172a",
+                letterSpacing: "-0.02em", margin: 0,
+              }}>
+                Personel Yönetim Merkezi
+              </h1>
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "2px 8px", borderRadius: 99,
+                background: "rgba(16,185,129,0.1)",
+                border: "1px solid rgba(16,185,129,0.28)",
+                fontSize: 9.5, fontWeight: 800,
+                color: "#10b981", letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: "#10b981",
+                  animation: "pulse 1.6s ease-in-out infinite",
+                }} />
+                Canlı
+              </span>
+            </div>
+            <p style={{ fontSize: 12, color: "#94a3b8", margin: "3px 0 0", fontWeight: 500 }}>
+              Müşteri Hizmetleri · ekip, rol, vardiya ve devamlılık yönetimi
+            </p>
+          </div>
         </div>
         {isAdmin && (
           <span style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "6px 12px", fontSize: 11, fontWeight: 700,
-            background: "#fef2f2", color: "#dc2626", borderRadius: 20,
-            boxShadow: "inset 0 0 0 1px rgba(239,68,68,0.2)",
+            background: "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)",
+            color: "#dc2626", borderRadius: 99,
+            border: "1px solid rgba(239,68,68,0.22)",
+            boxShadow: "0 1px 3px rgba(239,68,68,0.08)",
           }}>
-            <Shield size={11} /> Admin Override Aktif
+            <Shield size={11} strokeWidth={2.6} /> Admin Override Aktif
           </span>
         )}
       </div>
 
       {/* Sekme çubuğu */}
       <div style={{
-        ...S.card,
-        padding: 6, display: "flex", gap: 4, width: "fit-content",
+        display: "flex", gap: 4,
+        background: "#f8fafc",
+        border: "1px solid rgba(0,0,0,0.07)",
+        borderRadius: 12, padding: 4,
+        width: "fit-content",
+        boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
       }}>
         {TABS.map(t => {
           const Icon = t.icon;
@@ -1608,17 +1963,43 @@ export default function PersonnelPage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-                cursor: "pointer", transition: "all 0.15s", border: "none",
-                background: active ? "#6366f1" : "transparent",
-                color: active ? "#ffffff" : "#64748b",
-                boxShadow: active ? "0 1px 3px rgba(99,102,241,0.25)" : "none",
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "8px 18px", borderRadius: 8, border: "none",
+                background: active
+                  ? "linear-gradient(180deg, #fff 0%, rgba(99,102,241,0.06) 100%)"
+                  : "transparent",
+                boxShadow: active
+                  ? "0 2px 6px rgba(0,0,0,0.06), 0 0 0 1px rgba(99,102,241,0.25)"
+                  : "none",
+                color: active ? "#6366f1" : "#64748b",
+                fontSize: 12.5, fontWeight: active ? 800 : 600,
+                cursor: "pointer",
+                transition: "all 0.18s",
+                position: "relative",
+                letterSpacing: active ? "0" : "0.01em",
               }}
-              onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "#374151"; e.currentTarget.style.background = "#f8fafc"; } }}
-              onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "#64748b"; e.currentTarget.style.background = "transparent"; } }}
+              onMouseEnter={e => {
+                if (!active) {
+                  e.currentTarget.style.color = "#0f172a";
+                  e.currentTarget.style.background = "rgba(0,0,0,0.02)";
+                }
+              }}
+              onMouseLeave={e => {
+                if (!active) {
+                  e.currentTarget.style.color = "#64748b";
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
             >
-              <Icon size={14} /> {t.label}
+              <Icon size={14} strokeWidth={active ? 2.6 : 2} />
+              {t.label}
+              {active && (
+                <span style={{
+                  position: "absolute", bottom: -1, left: "20%", right: "20%",
+                  height: 2, borderRadius: 99,
+                  background: "linear-gradient(90deg, transparent, #6366f1, transparent)",
+                }} />
+              )}
             </button>
           );
         })}

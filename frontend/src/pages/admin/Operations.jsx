@@ -14,6 +14,7 @@
 ════════════════════════════════════════════════════════════════════════════ */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
   CheckCircle2,
   Ear,
@@ -808,13 +809,14 @@ const T = ADMIN_THEME;
 function SummaryStrip({ data, loading }) {
   if (loading) {
     return (
-      <div style={{
-        display: "flex", gap: 8, flexWrap: "wrap",
-        padding: "10px 0", marginBottom: 4,
+      <div className="op-kpi-grid" style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(5, 1fr)",
+        gap: 10, marginBottom: 4,
       }}>
         {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} style={{
-            flex: "1 1 120px", height: 64, borderRadius: 12,
+            height: 72, borderRadius: 12,
             background: "linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%)",
             backgroundSize: "200% 100%", animation: "opShim 1.4s infinite",
           }} />
@@ -871,31 +873,68 @@ function SummaryStrip({ data, loading }) {
     <>
       <style>{`
         @keyframes opShim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        .op-kpi-chip {
+          transition: transform 0.18s, box-shadow 0.18s;
+        }
+        .op-kpi-chip:hover {
+          transform: translateY(-2px);
+        }
+        @media (max-width: 920px) {
+          .op-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+        @media (max-width: 540px) {
+          .op-kpi-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+      <div className="op-kpi-grid" style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${chips.length}, 1fr)`,
+        gap: 10, marginBottom: 4,
+      }}>
         {chips.map(({ label, value, sub, color }) => (
-          <div key={label} style={{
-            flex: "1 1 120px", minWidth: 110,
-            background: "#ffffff",
-            border: `1px solid ${color}20`,
-            borderTop: `3px solid ${color}`,
-            borderRadius: 12,
-            padding: "10px 14px",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-          }}>
+          <div
+            key={label}
+            className="op-kpi-chip"
+            style={{
+              background: `linear-gradient(135deg, #fff 0%, ${color}06 100%)`,
+              border: `1px solid ${color}25`,
+              borderTop: `3px solid ${color}`,
+              borderRadius: 12,
+              padding: "11px 16px",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = `0 6px 18px ${color}22, 0 1px 4px rgba(0,0,0,0.05)`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
+            }}
+          >
             <div style={{
-              fontSize: 18, fontWeight: 800, color,
+              position: "absolute", top: -16, right: -16,
+              width: 60, height: 60, borderRadius: "50%",
+              background: `radial-gradient(circle, ${color}10 0%, transparent 70%)`,
+              pointerEvents: "none",
+            }} />
+            <div style={{
+              fontSize: 19, fontWeight: 800, color,
               lineHeight: 1.1, fontVariantNumeric: "tabular-nums",
               letterSpacing: "-0.02em",
+              position: "relative",
             }}>
               {value}
             </div>
             {sub && (
-              <div style={{ fontSize: 10, color: T.muted, marginTop: 1 }}>{sub}</div>
+              <div style={{ fontSize: 10, color: T.muted, marginTop: 2, position: "relative" }}>
+                {sub}
+              </div>
             )}
             <div style={{
               fontSize: 10, fontWeight: 700, color: T.muted,
-              letterSpacing: "0.05em", textTransform: "uppercase", marginTop: 4,
+              letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 5,
+              position: "relative",
             }}>
               {label}
             </div>

@@ -5,8 +5,17 @@ import {
   X, Delete, ChevronRight, Radio,
   Grid3X3, Clock, BookUser, Search, Shield, UserCog, User, Wrench,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import { useCall } from "@/context/CallContext";
 import { agentApi } from "@/services/api";
+
+/* ─── Rol → softphone başlık renkleri & etiket ─── */
+const ROLE_HEADER = {
+  admin:      { label: "Yönetim",     dot: "bg-rose-400",    text: "text-rose-300",    badge: "bg-rose-500/15 border-rose-400/30" },
+  supervisor: { label: "Süpervizör",  dot: "bg-violet-400",  text: "text-violet-300",  badge: "bg-violet-500/15 border-violet-400/30" },
+  personel:   { label: "Personel",    dot: "bg-emerald-400", text: "text-emerald-300", badge: "bg-emerald-500/15 border-emerald-400/30" },
+  bt:         { label: "Bilgi İşlem", dot: "bg-amber-400",   text: "text-amber-300",   badge: "bg-amber-500/15 border-amber-400/30" },
+};
 
 /* ─── Yardımcı: çağrı süresi formatla ─── */
 function formatDuration(startedAt) {
@@ -64,8 +73,14 @@ export default function Softphone() {
     setSoftphoneNumber, setSoftphoneMuted, setSoftphoneOnHold,
     dial, hangupSoftphone, recentCalls,
   } = useCall();
+  const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("dial");
+  const role = String(user?.role || "personel").toLowerCase();
+  const roleStyle = ROLE_HEADER[role] || ROLE_HEADER.personel;
+
+  // Admin/Süpervizör için varsayılan açılış sekmesi Rehber, Personel için Tuş Takımı
+  const defaultTab = (role === "admin" || role === "supervisor") ? "directory" : "dial";
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   // Çağrı sayacı (1 sn'de bir tick)
   const [, setTick] = useState(0);
@@ -151,26 +166,33 @@ export default function Softphone() {
       >
         {/* Header */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
-              <Phone className="h-4 w-4 text-emerald-300" strokeWidth={2.2} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`h-8 w-8 rounded-xl ${roleStyle.badge} border flex items-center justify-center shrink-0`}>
+              <Phone className={`h-4 w-4 ${roleStyle.text}`} strokeWidth={2.2} />
             </div>
-            <div>
-              <p className="text-[13px] font-bold text-white leading-tight">Softphone</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[13px] font-bold text-white leading-tight">Softphone</p>
+                {user?.extension && (
+                  <span className="text-[10px] font-mono text-slate-400 leading-tight">· {user.extension}</span>
+                )}
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${roleStyle.dot} opacity-75`} />
+                  <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${roleStyle.dot}`} />
                 </span>
-                <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-emerald-300">
-                  AMI Bağlı
+                <span className={`text-[10px] uppercase tracking-[0.14em] font-semibold ${roleStyle.text}`}>
+                  {roleStyle.label}
                 </span>
+                <span className="text-[9px] text-slate-500">·</span>
+                <span className="text-[9px] uppercase tracking-wide text-slate-400">AMI Bağlı</span>
               </div>
             </div>
           </div>
           <button
             onClick={closeSoftphone}
-            className="h-7 w-7 rounded-lg bg-white/5 hover:bg-white/15 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
+            className="h-7 w-7 rounded-lg bg-white/5 hover:bg-white/15 flex items-center justify-center text-slate-300 hover:text-white transition-colors shrink-0"
             title="Kapat (Esc)"
           >
             <X className="h-4 w-4" />

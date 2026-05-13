@@ -7,6 +7,8 @@ import {
   Phone, Headphones, Clock, Eye, FileText, UserCheck
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import Softphone from "@/components/Softphone";
+import { useCall } from "@/context/CallContext";
 import logoCompact from "@/assets/logo2.png";
 
 const SUP_NAV = [
@@ -50,9 +52,22 @@ export default function SupervisorLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { toggleSoftphone } = useCall();
   const navigate = useNavigate();
   const sidebarRef = useRef(null);
   const pending = usePendingCounts();
+
+  // Ctrl+P (veya Cmd+P) → softphone aç/kapat
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        toggleSoftphone();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggleSoftphone]);
 
   const displayName = user?.full_name || user?.username || "Süpervizör";
   const initials = displayName.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
@@ -324,6 +339,9 @@ export default function SupervisorLayout() {
           50% { opacity: 0.6; transform: scale(1.2); }
         }
       `}</style>
+
+      {/* ── Softphone (sağdan açılan rol-renkli panel, Ctrl+P ile aç/kapat) ── */}
+      <Softphone />
     </div>
   );
 }

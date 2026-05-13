@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
+import { useCall } from "@/context/CallContext";
+import Softphone from "@/components/Softphone";
 import { headerApi } from "@/services/api";
 import {
   Tooltip,
@@ -105,12 +107,25 @@ export default function AdminLayout() {
   const [searching,    setSearching]    = useState(false);
 
   const { user, logout } = useAuth();
+  const { toggleSoftphone } = useCall();
   const navigate         = useNavigate();
   const location         = useLocation();
   const sidebarRef       = useRef(null);
   const bellRef          = useRef(null);
   const searchRef        = useRef(null);
   const searchTimer      = useRef(null);
+
+  // Ctrl+P (veya Cmd+P) → softphone aç/kapat
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        toggleSoftphone();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggleSoftphone]);
 
   const displayName = user?.full_name || user?.username || "Admin";
   const initials    = displayName
@@ -983,6 +998,9 @@ export default function AdminLayout() {
             <Outlet />
           </main>
         </div>
+
+        {/* ── Softphone (sağdan açılan rol-renkli panel, Ctrl+P ile aç/kapat) ── */}
+        <Softphone />
       </div>
     </TooltipProvider>
     );

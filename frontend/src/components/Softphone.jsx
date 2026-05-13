@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Phone, PhoneOff, PhoneIncoming, PhoneOutgoing,
   Mic, MicOff, Pause, Play, Users2, ArrowRightLeft,
   X, Delete, ChevronRight, Radio,
+  Grid3X3, Clock, BookUser, Search, Shield, UserCog, User, Wrench,
 } from "lucide-react";
 import { useCall } from "@/context/CallContext";
+import { agentApi } from "@/services/api";
 
 /* ─── Yardımcı: çağrı süresi formatla ─── */
 function formatDuration(startedAt) {
@@ -15,6 +17,14 @@ function formatDuration(startedAt) {
   return `${m}:${s}`;
 }
 
+/* ─── Yardımcı: isim baş harfleri ─── */
+function getInitials(name = "") {
+  const tokens = String(name).trim().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return "?";
+  if (tokens.length === 1) return tokens[0].slice(0, 2).toUpperCase();
+  return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+}
+
 /* ─── Dial pad anahtarları ─── */
 const DIAL_KEYS = [
   ["1", ""],     ["2", "ABC"],  ["3", "DEF"],
@@ -22,6 +32,28 @@ const DIAL_KEYS = [
   ["7", "PQRS"], ["8", "TUV"],  ["9", "WXYZ"],
   ["*", ""],     ["0", "+"],    ["#", ""],
 ];
+
+/* ─── Sol menü sekmeleri ─── */
+const SP_TABS = [
+  { id: "dial",      label: "Tuş Takımı",   icon: Grid3X3 },
+  { id: "recent",    label: "Son Aramalar", icon: Clock },
+  { id: "directory", label: "Rehber",       icon: BookUser },
+];
+
+/* ─── Rol stil haritası (Rehber) ─── */
+const ROLE_STYLE = {
+  admin:      { icon: Shield,  cls: "bg-rose-100 text-rose-700",       label: "Yönetim" },
+  supervisor: { icon: UserCog, cls: "bg-violet-100 text-violet-700",   label: "Süpervizör" },
+  personel:   { icon: User,    cls: "bg-emerald-100 text-emerald-700", label: "Personel" },
+  bt:         { icon: Wrench,  cls: "bg-amber-100 text-amber-700",     label: "BT" },
+};
+
+const STATUS_TONE = {
+  online:  "bg-emerald-500",
+  mola:    "bg-amber-500",
+  break:   "bg-amber-500",
+  offline: "bg-slate-300",
+};
 
 /* ──────────────────────────────────────────────────────────── */
 export default function Softphone() {
@@ -32,6 +64,8 @@ export default function Softphone() {
     setSoftphoneNumber, setSoftphoneMuted, setSoftphoneOnHold,
     dial, hangupSoftphone, recentCalls,
   } = useCall();
+
+  const [activeTab, setActiveTab] = useState("dial");
 
   // Çağrı sayacı (1 sn'de bir tick)
   const [, setTick] = useState(0);
@@ -57,6 +91,15 @@ export default function Softphone() {
   const handleDial = () => {
     if (!softphoneNumber || softphoneNumber.trim().length < 3) return;
     dial();
+  };
+
+  // Rehberden / son aramalardan tıklanan numara → tuş takımına geç ve numarayı yaz
+  const callExtension = (ext) => {
+    if (!ext) return;
+    setSoftphoneNumber(String(ext));
+    setActiveTab("dial");
+    // Otomatik aramayı tetikle (kısa numaralar için 3+ karakter şartını aşar)
+    setTimeout(() => dial(String(ext)), 60);
   };
 
   return (
@@ -98,7 +141,7 @@ export default function Softphone() {
       <aside
         ref={panelRef}
         className={`
-          fixed top-3 bottom-3 right-3 w-[340px] z-50
+          fixed top-3 bottom-3 right-3 w-[380px] z-50
           rounded-2xl overflow-hidden
           bg-white border border-slate-200
           shadow-[0_24px_60px_rgba(15,23,42,0.32)]
@@ -134,8 +177,8 @@ export default function Softphone() {
           </button>
         </div>
 
-        {/* Body — 2 mod: aktif çağrı | dial pad */}
-        <div className="flex flex-col h-[calc(100%-60px)] bg-gradient-to-b from-slate-50/50 to-white">
+        {/* Body — aktif çağrı varsa tek görünüm; yoksa sol menü + içerik */}
+        <div className="flex h-[calc(100%-60px)] bg-gradient-to-b from-slate-50/50 to-white">
           {softphoneCall ? (
             <ActiveCallView
               call={softphoneCall}
@@ -146,14 +189,28 @@ export default function Softphone() {
               onHangup={hangupSoftphone}
             />
           ) : (
-            <DialPadView
-              number={softphoneNumber}
-              onAdd={handleAddDigit}
-              onBackspace={handleBackspace}
-              onDial={handleDial}
-              recentCalls={recentCalls}
-              onPickRecent={(num) => setSoftphoneNumber(num)}
-            />
+            <>
+              {/* Sol dikey ikon menüsü */}
+              <SideTabs active={activeTab} onChange={setActiveTab} />
+
+              {/* Aktif sekmenin içeriği */}
+              <div className="flex-1 min-w-0 flex flex-col">
+                {activeTab === "dial" && (
+                  <DialPadTab
+                    number={softphoneNumber}
+                    onAdd={handleAddDigit}
+                    onBackspace={handleBackspace}
+                    onDial={handleDial}
+                  />
+                )}
+                {activeTab === "recent" && (
+                  <RecentTab recentCalls={recentCalls} onPick={callExtension} />
+                )}
+                {activeTab === "directory" && (
+                  <DirectoryTab onCall={callExtension} />
+                )}
+              </div>
+            </>
           )}
         </div>
       </aside>
@@ -161,15 +218,49 @@ export default function Softphone() {
       <style>{`
         @keyframes sp-fade-in { from { opacity: 0 } to { opacity: 1 } }
         .sp-fade { animation: sp-fade-in 200ms ease-out both; }
+        .sp-scroll::-webkit-scrollbar { width: 4px }
+        .sp-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px }
+        .sp-scroll::-webkit-scrollbar-track { background: transparent }
       `}</style>
     </>
+  );
+}
+
+/* ─── Sol dikey ikon menüsü ─── */
+function SideTabs({ active, onChange }) {
+  return (
+    <div className="w-[60px] shrink-0 border-r border-slate-200 bg-slate-50/80 flex flex-col items-center py-3 gap-1.5">
+      {SP_TABS.map((t) => {
+        const Icon = t.icon;
+        const isActive = active === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            title={t.label}
+            className={`relative w-[48px] py-2 rounded-xl flex flex-col items-center gap-0.5 transition-all
+              ${isActive
+                ? "bg-white border border-slate-200 shadow-sm text-emerald-600"
+                : "text-slate-500 hover:bg-white/70 hover:text-slate-700"}`}
+          >
+            {isActive && (
+              <span className="absolute -left-3 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-emerald-500" />
+            )}
+            <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
+            <span className={`text-[9px] font-semibold leading-tight text-center ${isActive ? "text-emerald-700" : ""}`}>
+              {t.label.split(" ")[0]}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
 /* ─── Aktif çağrı görünümü ─── */
 function ActiveCallView({ call, muted, onHold, setMuted, setOnHold, onHangup }) {
   return (
-    <>
+    <div className="flex-1 flex flex-col">
       {/* Caller card */}
       <div className="px-4 pt-5 pb-4 text-center">
         <div className="mx-auto h-[72px] w-[72px] relative flex items-center justify-center">
@@ -229,16 +320,16 @@ function ActiveCallView({ call, muted, onHold, setMuted, setOnHold, onHangup }) 
           Çağrıyı Sonlandır
         </button>
       </div>
-    </>
+    </div>
   );
 }
 
-/* ─── Dial pad görünümü ─── */
-function DialPadView({ number, onAdd, onBackspace, onDial, recentCalls, onPickRecent }) {
+/* ─── Sekme: Tuş Takımı ─── */
+function DialPadTab({ number, onAdd, onBackspace, onDial }) {
   return (
     <>
       {/* Number display */}
-      <div className="px-4 pt-4">
+      <div className="px-3 pt-3">
         <div className="relative h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center">
           <span className="text-[20px] font-mono font-bold text-slate-700 tabular-nums truncate px-10">
             {number || <span className="text-slate-300 text-[14px] font-sans font-normal">Numara girin…</span>}
@@ -256,7 +347,7 @@ function DialPadView({ number, onAdd, onBackspace, onDial, recentCalls, onPickRe
       </div>
 
       {/* Dial pad */}
-      <div className="px-4 pt-3 grid grid-cols-3 gap-1.5">
+      <div className="px-3 pt-3 grid grid-cols-3 gap-1.5">
         {DIAL_KEYS.map(([key, sub]) => (
           <button
             key={key}
@@ -270,7 +361,7 @@ function DialPadView({ number, onAdd, onBackspace, onDial, recentCalls, onPickRe
       </div>
 
       {/* Dial button */}
-      <div className="px-4 pt-3">
+      <div className="px-3 pt-3 pb-3">
         <button
           onClick={onDial}
           disabled={!number || number.trim().length < 3}
@@ -280,40 +371,255 @@ function DialPadView({ number, onAdd, onBackspace, onDial, recentCalls, onPickRe
           Ara
         </button>
       </div>
+    </>
+  );
+}
 
-      {/* Recent calls */}
-      <div className="px-4 pt-4 pb-2 flex-1 overflow-y-auto sp-scroll">
-        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-2">
-          Son Aramalar
-        </p>
-        <div className="flex flex-col gap-1">
-          {recentCalls.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => onPickRecent(c.number)}
-              className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
-            >
-              <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${c.dir === "in" ? "bg-emerald-50" : "bg-sky-50"}`}>
-                {c.dir === "in"
-                  ? <PhoneIncoming className="h-3.5 w-3.5 text-emerald-600" strokeWidth={2} />
-                  : <PhoneOutgoing className="h-3.5 w-3.5 text-sky-600"     strokeWidth={2} />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold text-slate-700 truncate">{c.name}</p>
-                <p className="text-[10px] font-mono text-slate-400 truncate">{c.number}</p>
-              </div>
-              <span className="text-[10px] text-slate-400 font-mono shrink-0">{c.at}</span>
-            </button>
-          ))}
+/* ─── Sekme: Son Aramalar ─── */
+function RecentTab({ recentCalls, onPick }) {
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div className="px-3 pt-3 pb-2 border-b border-slate-100">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            Çağrı Geçmişi
+          </span>
+          <span className="text-[10px] text-slate-400 tabular-nums">{recentCalls?.length || 0}</span>
         </div>
       </div>
 
-      <style>{`
-        .sp-scroll::-webkit-scrollbar { width: 4px }
-        .sp-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px }
-        .sp-scroll::-webkit-scrollbar-track { background: transparent }
-      `}</style>
-    </>
+      <div className="flex-1 overflow-y-auto sp-scroll p-2">
+        {(!recentCalls || recentCalls.length === 0) ? (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6 py-8 gap-2">
+            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+              <Clock className="h-5 w-5 text-slate-400" />
+            </div>
+            <p className="text-[12px] font-semibold text-slate-600">Geçmiş çağrı yok</p>
+            <p className="text-[10px] text-slate-400">Yapılan/gelen çağrılar burada listelenir.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {recentCalls.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => onPick(c.number)}
+                className="group flex items-center gap-2.5 px-2 py-2 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 border border-transparent transition-colors text-left"
+              >
+                <div className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${c.dir === "in" ? "bg-emerald-50" : "bg-sky-50"}`}>
+                  {c.dir === "in"
+                    ? <PhoneIncoming className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                    : <PhoneOutgoing className="h-4 w-4 text-sky-600"     strokeWidth={2} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-semibold text-slate-700 truncate">{c.name || "Bilinmeyen"}</p>
+                  <p className="text-[10px] font-mono text-slate-400 truncate">{c.number}</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[10px] text-slate-400 font-mono">{c.at}</span>
+                  <Phone className="h-3 w-3 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Sekme: Rehber ─── */
+function DirectoryTab({ onCall }) {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery]     = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    agentApi.getDirectory()
+      .then((res) => { if (!cancelled) setData(res.data); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Filtreleme: isim VEYA dahili numara
+  const filtered = useMemo(() => {
+    if (!data) return null;
+    const q = query.trim().toLowerCase();
+    const groups = ["admin", "supervisor", "personel", "bt"];
+    const out = {};
+    for (const g of groups) {
+      const list = Array.isArray(data[g]) ? data[g] : [];
+      out[g] = q
+        ? list.filter((u) =>
+            (u.name || "").toLowerCase().includes(q) ||
+            String(u.extension || "").includes(q)
+          )
+        : list;
+    }
+    return out;
+  }, [data, query]);
+
+  const totalFiltered = filtered
+    ? Object.values(filtered).reduce((a, l) => a + l.length, 0)
+    : 0;
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      {/* Header + arama */}
+      <div className="px-3 pt-3 pb-2 border-b border-slate-100 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            Şirket Rehberi
+          </span>
+          <span className="text-[10px] text-slate-400 tabular-nums">
+            {loading ? "…" : `${totalFiltered} kişi`}
+          </span>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="İsim veya dahili ara…"
+            className="w-full h-9 pl-8 pr-3 rounded-xl bg-slate-50 border border-slate-200 text-[12px] focus:outline-none focus:border-emerald-400 focus:bg-white transition-all"
+          />
+        </div>
+      </div>
+
+      {/* Liste */}
+      <div className="flex-1 overflow-y-auto sp-scroll px-2 py-2">
+        {loading && (
+          <div className="space-y-1.5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-12 rounded-xl bg-slate-100 animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {!loading && !data && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6 py-8 gap-2">
+            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+              <BookUser className="h-5 w-5 text-slate-400" />
+            </div>
+            <p className="text-[12px] font-semibold text-slate-600">Rehber yüklenemedi</p>
+            <p className="text-[10px] text-slate-400">Sunucu bağlantısını kontrol edin.</p>
+          </div>
+        )}
+
+        {!loading && data && totalFiltered === 0 && (
+          <div className="h-full flex flex-col items-center justify-center text-center px-6 py-8 gap-2">
+            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+              <Search className="h-5 w-5 text-slate-400" />
+            </div>
+            <p className="text-[12px] font-semibold text-slate-600">Eşleşme yok</p>
+            <p className="text-[10px] text-slate-400">"{query}" için kullanıcı bulunamadı.</p>
+          </div>
+        )}
+
+        {!loading && filtered && totalFiltered > 0 && (
+          <div className="space-y-3">
+            {["admin", "supervisor", "personel", "bt"].map((role) => {
+              const list = filtered[role] || [];
+              if (list.length === 0) return null;
+              const style = ROLE_STYLE[role] || ROLE_STYLE.personel;
+              return (
+                <div key={role}>
+                  <div className="flex items-center gap-1.5 px-1 mb-1">
+                    <span className={`flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.12em] px-1.5 py-0.5 rounded-full ${style.cls}`}>
+                      <style.icon className="h-2.5 w-2.5" strokeWidth={2.5} />
+                      {style.label}
+                    </span>
+                    <span className="text-[9px] text-slate-400 tabular-nums">· {list.length}</span>
+                    <span className="flex-1 h-px bg-slate-100 ml-1" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {list.map((u) => (
+                      <ContactRow
+                        key={u.id}
+                        contact={u}
+                        roleStyle={style}
+                        onCall={onCall}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Rehber satırı ─── */
+function ContactRow({ contact, roleStyle, onCall }) {
+  const hasExt = !!contact.extension;
+  const statusTone = STATUS_TONE[contact.anlik_durum] || STATUS_TONE.offline;
+
+  return (
+    <div className={`group flex items-center gap-2 px-2 py-2 rounded-xl border transition-all
+      ${contact.isMe
+        ? "bg-amber-50/50 border-amber-200"
+        : "bg-white border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/40"}`}
+    >
+      {/* Avatar + durum noktası */}
+      <div className="relative shrink-0">
+        <div className={`h-8 w-8 rounded-xl flex items-center justify-center text-[10px] font-bold ${roleStyle.cls}`}>
+          {getInitials(contact.name)}
+        </div>
+        <span className={`absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${statusTone}`} />
+      </div>
+
+      {/* Bilgi */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1">
+          <span className="text-[12px] font-semibold text-slate-800 truncate">
+            {contact.name}
+          </span>
+          {contact.isMe && (
+            <span className="text-[8px] font-bold uppercase text-amber-700 bg-amber-100 px-1 py-0.5 rounded">
+              Ben
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {hasExt ? (
+            <span className="text-[10px] font-mono text-slate-500 tabular-nums">
+              ☎ {contact.extension}
+            </span>
+          ) : (
+            <span className="text-[9px] text-slate-400 italic">dahili tanımlı değil</span>
+          )}
+          {contact.unvan && (
+            <>
+              <span className="h-0.5 w-0.5 rounded-full bg-slate-300" />
+              <span className="text-[9px] text-slate-400 truncate">{contact.unvan}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Ara butonu */}
+      <button
+        type="button"
+        disabled={!hasExt || contact.isMe}
+        onClick={() => onCall(contact.extension)}
+        title={
+          contact.isMe ? "Kendinizi arayamazsınız" :
+          !hasExt     ? "Dahili numara tanımlı değil" :
+          `${contact.name} (${contact.extension})`
+        }
+        className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 transition-all
+          ${(!hasExt || contact.isMe)
+            ? "bg-slate-50 text-slate-300 cursor-not-allowed"
+            : "bg-emerald-500 text-white hover:bg-emerald-600 active:scale-95 shadow-sm opacity-70 group-hover:opacity-100"}`}
+      >
+        <Phone className="h-3.5 w-3.5" strokeWidth={2.5} />
+      </button>
+    </div>
   );
 }
 

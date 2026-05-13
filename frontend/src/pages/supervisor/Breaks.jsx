@@ -2,14 +2,58 @@ import { useState, useEffect } from "react";
 import { Coffee, CheckCircle, XCircle, AlertCircle, Clock, ShieldAlert } from "lucide-react";
 import { supervisorApi } from "../../services/api";
 
+/* ── DEMO mola talepleri (backend boş döndüğünde gösterilir) ── */
+const MOCK_BREAKS = [
+  {
+    id: "mk-1",
+    name: "Ahmet Yılmaz",
+    time: "14:25 — 14:40",
+    dur:  "15 dk",
+    type: "Çay/Kahve",
+    isEmergency: false,
+    inCall: false,
+  },
+  {
+    id: "mk-2",
+    name: "Selin Öztürk",
+    time: "14:30 — 14:45",
+    dur:  "15 dk",
+    type: "Tuvalet",
+    isEmergency: true,
+    inCall: false,
+  },
+  {
+    id: "mk-3",
+    name: "Can Demir",
+    time: "14:35 — 15:05",
+    dur:  "30 dk",
+    type: "Öğle Arası (Geç)",
+    isEmergency: false,
+    inCall: true,
+  },
+  {
+    id: "mk-4",
+    name: "Zeynep Arslan",
+    time: "14:40 — 14:50",
+    dur:  "10 dk",
+    type: "Kişisel",
+    isEmergency: false,
+    inCall: false,
+  },
+];
+
 export default function SupervisorBreaks() {
   const [tab, setTab] = useState("talepler");
   const [MOLA_TALEPLERI, setMolaTalepleri] = useState([]);
-  
+
   useEffect(() => {
     supervisorApi.getActiveBreaks().then(res => {
-      setMolaTalepleri(res.data || []);
-    }).catch(err => console.error(err));
+      const data = res.data || [];
+      // Boşsa demo veriyi göster — sunum boş durmasın
+      setMolaTalepleri(data.length > 0 ? data : MOCK_BREAKS);
+    }).catch(() => {
+      setMolaTalepleri(MOCK_BREAKS);
+    });
   }, []);
 
   return (

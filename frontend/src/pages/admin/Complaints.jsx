@@ -36,6 +36,88 @@ const FILTRELER = [
   { id: "red",       label: "Reddedilen", durum: "reddedildi" },
 ];
 
+/* ─── DEMO şikayetler (backend boş döndüğünde gösterilir) ─── */
+const _now = Date.now();
+const _iso = (msAgo) => new Date(_now - msAgo).toISOString();
+const MOCK_COMPLAINTS = {
+  bekleyen: [
+    {
+      id: "ck-1",
+      musteri_ad: "Mehmet Aydın",
+      musteri_telefon: "+90 532 411 22 18",
+      personel_id: "p-1",
+      konu: "Görüşmeyi kısa kesti, talebim çözülmedi",
+      aciklama: "Müşteri 14:25'te aradı, satış departmanına yönlendirme talep etti. Personel kısa cevap verip kapattı.",
+      durum: "olusturuldu",
+      kategori: "Hizmet Kalitesi",
+      olusturma_tarihi: _iso(1000 * 60 * 18),         // 18 dk önce
+    },
+    {
+      id: "ck-2",
+      musteri_ad: "Ayşe Kaya",
+      musteri_telefon: "+90 545 233 88 44",
+      personel_id: "p-2",
+      konu: "Yanlış ürün bilgisi verildi",
+      aciklama: "Sipariş ettiğim ayakkabı modelinin stokta olduğu söylendi, ancak ertesi gün iptal edildi.",
+      durum: "supervisor_inceleme",
+      kategori: "Bilgi Doğruluğu",
+      olusturma_tarihi: _iso(1000 * 60 * 47),
+    },
+    {
+      id: "ck-3",
+      musteri_ad: "Kemal Erdoğan",
+      musteri_telefon: "+90 505 671 34 12",
+      personel_id: "p-3",
+      konu: "Çağrı çok uzun süre bekletildi",
+      aciklama: "Teknik destek için aradım, 12 dk müzik dinledim. Personel bağlandığında konuyu hatırlamamıştı.",
+      durum: "olusturuldu",
+      kategori: "Bekleme Süresi",
+      olusturma_tarihi: _iso(1000 * 60 * 90),
+    },
+    {
+      id: "ck-4",
+      musteri_ad: "Fatma Şahin",
+      musteri_telefon: "+90 530 988 11 22",
+      personel_id: "p-1",
+      konu: "Saygısız davranış",
+      aciklama: "İade talebimi sorduğumda yüksek sesle cevap verdi. VIP müşteri olmama rağmen.",
+      durum: "supervisor_inceleme",
+      kategori: "Davranış",
+      olusturma_tarihi: _iso(1000 * 60 * 60 * 2),     // 2 saat önce
+    },
+  ],
+  onayli: [
+    {
+      id: "ck-5", musteri_ad: "Hasan Öztürk", musteri_telefon: "+90 542 555 66 77",
+      personel_id: "p-2", konu: "Eğitim yetersizliği — geçerli şikayet",
+      aciklama: "Ürün özelliklerini bilmiyordu; süpervizör eğitim atadı.",
+      durum: "onaylandi", kategori: "Bilgi Doğruluğu",
+      olusturma_tarihi: _iso(1000 * 60 * 60 * 26),
+    },
+    {
+      id: "ck-6", musteri_ad: "Zeynep Arslan", musteri_telefon: "+90 537 666 77 88",
+      personel_id: "p-3", konu: "VIP müşteriye yanlış işlem",
+      aciklama: "Yanlış paket aktivasyonu yapıldı; geri alındı, XP -50 düşürüldü.",
+      durum: "onaylandi", kategori: "İşlem Hatası",
+      olusturma_tarihi: _iso(1000 * 60 * 60 * 48),
+    },
+  ],
+  red: [
+    {
+      id: "ck-7", musteri_ad: "Ali Demir", musteri_telefon: "+90 553 333 44 55",
+      personel_id: "p-1", konu: "Kayıt dinlenince geçersiz çıktı",
+      aciklama: "Müşteri agresif tonu personelden duyduğunu söyledi, kayıtta tam tersi tespit edildi.",
+      durum: "reddedildi", kategori: "Davranış",
+      olusturma_tarihi: _iso(1000 * 60 * 60 * 70),
+    },
+  ],
+};
+const MOCK_PEOPLE = {
+  "p-1": { ad_soyad: "Deniz Kaya",    ekip: "Çağrı Merkezi A", dahili_no: "1101" },
+  "p-2": { ad_soyad: "Selin Öztürk",  ekip: "Satış Ekibi",     dahili_no: "1102" },
+  "p-3": { ad_soyad: "Ahmet Yılmaz",  ekip: "Çağrı Merkezi A", dahili_no: "1103" },
+};
+
 /* ─── Shimmer ────────────────────────────────────────────────────────────── */
 function Shimmer({ h = 44, mb = 6 }) {
   return (
@@ -87,18 +169,29 @@ export default function ComplaintsPage() {
       personnelApi.getList({ per_page: 200, page: 1 }),
     ]);
 
-    if (cRes.status === "fulfilled") {
-      setComplaints(Array.isArray(cRes.value.data) ? cRes.value.data : []);
-    } else {
-      setComplaints([]);
+    let realComplaints = [];
+    if (cRes.status === "fulfilled" && Array.isArray(cRes.value.data)) {
+      realComplaints = cRes.value.data;
     }
+
+    // Boşsa veya hata ise demo veriyle doldur — sunum boş durmasın
+    if (realComplaints.length === 0) {
+      const mockList = MOCK_COMPLAINTS[filter] ?? MOCK_COMPLAINTS.bekleyen;
+      setComplaints(mockList);
+    } else {
+      setComplaints(realComplaints);
+    }
+
     if (pRes.status === "fulfilled") {
       const items = pRes.value.data?.items ?? [];
       const map = {};
       items.forEach(p => {
         map[p.id] = { ad_soyad: p.ad_soyad, ekip: p.ekip, dahili_no: p.dahili_no };
       });
-      setPeople(map);
+      // Mock personeli her zaman ekle (demo ID'leri eşleşsin)
+      setPeople({ ...MOCK_PEOPLE, ...map });
+    } else {
+      setPeople(MOCK_PEOPLE);
     }
     setLoading(false);
     if (manual) setRefreshing(false);

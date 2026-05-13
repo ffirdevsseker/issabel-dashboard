@@ -2,19 +2,53 @@ import { useState, useEffect } from "react";
 import { BarChart3, TrendingUp, TrendingDown, Calendar, Filter, Download, FileText, PieChart, Users } from "lucide-react";
 import { supervisorApi } from "../../services/api";
 
+/* ─── DEMO veriler (backend boş döndüğünde gösterilir) ─── */
+const MOCK_REPORTS = {
+  kpis: [
+    { label: "Toplam Çağrı",      value: "1.284", prev: "1.146", trend: "up",   perc: "+12%" },
+    { label: "Cevapsız Çağrı",    value: "%6,2",  prev: "%7,3",  trend: "down", perc: "-1,1%" },
+    { label: "Ortalama Görüşme",  value: "3:45",  prev: "3:50",  trend: "down", perc: "-0:05" },
+    { label: "CSAT Puanı",        value: "4.6",   prev: "4.4",   trend: "up",   perc: "+0.2" },
+  ],
+  hourly_chart: [
+    { name: "08", gelen: 28  },
+    { name: "09", gelen: 65  },
+    { name: "10", gelen: 102 },
+    { name: "11", gelen: 134 },
+    { name: "12", gelen: 88  },
+    { name: "13", gelen: 95  },
+    { name: "14", gelen: 142 },
+    { name: "15", gelen: 158 },
+    { name: "16", gelen: 124 },
+    { name: "17", gelen: 78  },
+  ],
+  agents: [
+    { name: "Ahmet Yılmaz",   calls: 142, avg: "3:22", csat: 4.8, missed: 4 },
+    { name: "Selin Öztürk",   calls: 128, avg: "3:55", csat: 4.6, missed: 6 },
+    { name: "Can Demir",      calls: 115, avg: "4:12", csat: 4.4, missed: 8 },
+    { name: "Zeynep Arslan",  calls: 156, avg: "3:08", csat: 4.9, missed: 2 },
+    { name: "Mert Güven",     calls: 98,  avg: "4:32", csat: 4.3, missed: 5 },
+    { name: "Ayşe Koç",       calls: 104, avg: "3:48", csat: 4.5, missed: 3 },
+  ],
+};
+
 export default function SupervisorReports() {
   const [period, setPeriod] = useState("bugun");
-  const [data, setData] = useState({ kpis: [], hourly_chart: [], agents: [] });
+  const [data, setData] = useState(MOCK_REPORTS);
 
   useEffect(() => {
     supervisorApi.getReports().then(res => {
-      setData(res.data);
-    }).catch(console.error);
+      const real = res.data || {};
+      // Boş alanları mock ile doldur
+      setData({
+        kpis:          (real.kpis?.length         > 0) ? real.kpis         : MOCK_REPORTS.kpis,
+        hourly_chart:  (real.hourly_chart?.length > 0) ? real.hourly_chart : MOCK_REPORTS.hourly_chart,
+        agents:        (real.agents?.length       > 0) ? real.agents       : MOCK_REPORTS.agents,
+      });
+    }).catch(() => setData(MOCK_REPORTS));
   }, [period]);
 
-  const KPIS = data.kpis.length > 0 ? data.kpis : [
-    { label: "Toplam Çağrı", value: "...", prev: "...", trend: "up", perc: "..." }
-  ];
+  const KPIS = data.kpis;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, height: "calc(100vh - 140px)" }}>

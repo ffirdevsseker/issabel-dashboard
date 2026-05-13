@@ -32,6 +32,22 @@ const TABS = [
 
 const safe = (v) => Math.max(0, Number.isFinite(+v) ? +v : 0);
 
+/* ─── DEMO XP hareketleri (backend boş döndüğünde gösterilir) ─── */
+const _gnow = Date.now();
+const _giso = (m) => new Date(_gnow - m * 60_000).toISOString();
+const GAM_MOCK_LOGS = [
+  { id: "x-1",  personel_id: "p-1", personel_ad: "Ahmet Yılmaz",  xp_degeri: 50,  kategori: "csat_yuksek",      aciklama: "CSAT 5/5 alındı",                          tarih: _giso(8)   },
+  { id: "x-2",  personel_id: "p-2", personel_ad: "Selin Öztürk",  xp_degeri: 30,  kategori: "hizli_cozum",       aciklama: "İlk kontakta çözüm",                       tarih: _giso(18)  },
+  { id: "x-3",  personel_id: "p-1", personel_ad: "Ahmet Yılmaz",  xp_degeri: 75,  kategori: "satis_basari",      aciklama: "Premium paket satışı",                     tarih: _giso(32)  },
+  { id: "x-4",  personel_id: "p-3", personel_ad: "Can Demir",     xp_degeri: -20, kategori: "uzun_konusma",      aciklama: "Görüşme 8 dakikayı aştı",                  tarih: _giso(45)  },
+  { id: "x-5",  personel_id: "p-4", personel_ad: "Zeynep Arslan", xp_degeri: 100, kategori: "manuel_admin",      aciklama: "Aylık başarı bonusu (Admin)",              tarih: _giso(62)  },
+  { id: "x-6",  personel_id: "p-2", personel_ad: "Selin Öztürk",  xp_degeri: -15, kategori: "molanin_asilmasi",  aciklama: "Mola 5 dk aşıldı",                         tarih: _giso(95)  },
+  { id: "x-7",  personel_id: "p-5", personel_ad: "Mert Güven",    xp_degeri: 40,  kategori: "csat_yuksek",       aciklama: "CSAT 4.8 ortalama",                        tarih: _giso(140) },
+  { id: "x-8",  personel_id: "p-6", personel_ad: "Ayşe Koç",      xp_degeri: 25,  kategori: "hizli_cozum",       aciklama: "Şikayet 30 sn içinde çözüldü",            tarih: _giso(180) },
+  { id: "x-9",  personel_id: "p-1", personel_ad: "Ahmet Yılmaz",  xp_degeri: 60,  kategori: "satis_basari",      aciklama: "Cross-sell başarısı",                      tarih: _giso(240) },
+  { id: "x-10", personel_id: "p-4", personel_ad: "Zeynep Arslan", xp_degeri: 35,  kategori: "csat_yuksek",       aciklama: "Müşteri övgü mesajı",                      tarih: _giso(310) },
+];
+
 /* ─── Podyum rütbe renkleri ─────────────────────────────────────────────── */
 const PODIUM = {
   1: { color: "#f59e0b", bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.25)", label: "Altın",  icon: Crown },
@@ -532,11 +548,24 @@ function XpLogsTab({ filterUser, onClearUserFilter, onPersonelClick }) {
         page,
         limit: LOG_PAGE_SIZE,
       });
-      setLogs(data?.data || []);
-      setTotal(data?.total ?? 0);
-      if (Array.isArray(data?.kategoriler)) setKategoriler(data.kategoriler);
+      const realLogs = data?.data || [];
+      const realTotal = data?.total ?? 0;
+      if (realLogs.length > 0) {
+        setLogs(realLogs);
+        setTotal(realTotal);
+      } else {
+        // Demo XP hareketleri (boş durumda)
+        setLogs(GAM_MOCK_LOGS);
+        setTotal(GAM_MOCK_LOGS.length);
+      }
+      const cats = Array.isArray(data?.kategoriler) && data.kategoriler.length
+        ? data.kategoriler
+        : ["csat_yuksek", "hizli_cozum", "satis_basari", "uzun_konusma", "molanin_asilmasi", "manuel_admin"];
+      setKategoriler(cats);
     } catch {
-      setLogs([]); setTotal(0);
+      setLogs(GAM_MOCK_LOGS);
+      setTotal(GAM_MOCK_LOGS.length);
+      setKategoriler(["csat_yuksek", "hizli_cozum", "satis_basari", "uzun_konusma", "molanin_asilmasi", "manuel_admin"]);
     } finally {
       setLoading(false);
     }

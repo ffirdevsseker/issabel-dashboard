@@ -2,15 +2,22 @@ import { useState, useEffect } from "react";
 import { Target, Star, Award, Search, Plus, ListTodo, History, Check } from "lucide-react";
 import { supervisorApi } from "../../services/api";
 
+const MOCK_TEAM = [
+  "Ahmet Yılmaz", "Selin Öztürk", "Can Demir", "Zeynep Arslan",
+  "Mert Güven", "Ayşe Koç", "Burak Yıldız", "Deniz Kaya",
+];
+
 export default function SupervisorGamification() {
   const [tab, setTab] = useState("gorevler");
   const [xpModal, setXpModal] = useState(false);
-  const [TEAM, setTeam] = useState([]);
+  const [TEAM, setTeam] = useState(MOCK_TEAM);
 
   useEffect(() => {
     supervisorApi.getGamification().then(res => {
-      if (res.data) setTeam(res.data.map(x => x.name));
-    }).catch(err => console.error(err));
+      const data = res.data || [];
+      const names = data.map(x => x.name || x.ad_soyad).filter(Boolean);
+      setTeam(names.length > 0 ? names : MOCK_TEAM);
+    }).catch(() => setTeam(MOCK_TEAM));
   }, []);
 
   const TASKS = [

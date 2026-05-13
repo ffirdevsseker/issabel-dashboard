@@ -12,6 +12,42 @@ import MissedCallsTable from "@/components/admin/dashboard/MissedCallsTable";
 
 const POLL_MS = 30_000;
 
+/* ─── DEMO veriler (backend boş döndüğünde gösterilir) ─── */
+const MOCK_HOURLY = [
+  { saat: "08:00", gelen: 12, cevaplanan: 11, kacirilan: 1 },
+  { saat: "09:00", gelen: 28, cevaplanan: 24, kacirilan: 4 },
+  { saat: "10:00", gelen: 45, cevaplanan: 41, kacirilan: 4 },
+  { saat: "11:00", gelen: 52, cevaplanan: 47, kacirilan: 5 },
+  { saat: "12:00", gelen: 38, cevaplanan: 33, kacirilan: 5 },
+  { saat: "13:00", gelen: 35, cevaplanan: 31, kacirilan: 4 },
+  { saat: "14:00", gelen: 48, cevaplanan: 43, kacirilan: 5 },
+  { saat: "15:00", gelen: 55, cevaplanan: 50, kacirilan: 5 },
+  { saat: "16:00", gelen: 42, cevaplanan: 39, kacirilan: 3 },
+  { saat: "17:00", gelen: 30, cevaplanan: 27, kacirilan: 3 },
+];
+
+const MOCK_AGENTS = [
+  { id: "a-1", ad_soyad: "Ahmet Yılmaz",   dahili_no: "1101", durum: "musait",  cagri_sayisi: 23, ortalama_sure: 145, xp: 1850 },
+  { id: "a-2", ad_soyad: "Selin Öztürk",   dahili_no: "1102", durum: "mesgul",  cagri_sayisi: 19, ortalama_sure: 178, xp: 1620 },
+  { id: "a-3", ad_soyad: "Can Demir",      dahili_no: "1103", durum: "mola",    cagri_sayisi: 15, ortalama_sure: 152, xp: 1450 },
+  { id: "a-4", ad_soyad: "Zeynep Arslan",  dahili_no: "1104", durum: "musait",  cagri_sayisi: 27, ortalama_sure: 132, xp: 2100 },
+  { id: "a-5", ad_soyad: "Mert Güven",     dahili_no: "1105", durum: "mesgul",  cagri_sayisi: 21, ortalama_sure: 168, xp: 1780 },
+  { id: "a-6", ad_soyad: "Ayşe Koç",       dahili_no: "1106", durum: "musait",  cagri_sayisi: 18, ortalama_sure: 142, xp: 1540 },
+  { id: "a-7", ad_soyad: "Burak Yıldız",   dahili_no: "1107", durum: "offline", cagri_sayisi: 0,  ortalama_sure: 0,   xp: 980  },
+  { id: "a-8", ad_soyad: "Deniz Kaya",     dahili_no: "1108", durum: "mola",    cagri_sayisi: 12, ortalama_sure: 165, xp: 1320 },
+];
+
+const _now = Date.now();
+const _iso = (m) => new Date(_now - m * 60_000).toISOString();
+const MOCK_MISSED = [
+  { id: "m-1", musteri_telefon: "+90 532 411 22 18", kategori: "Satış",   personel: "Ahmet Yılmaz",   dahili: "1101", baslangic: _iso(8),  bekleme_suresi: 42 },
+  { id: "m-2", musteri_telefon: "+90 545 233 88 44", kategori: "Destek",  personel: "Selin Öztürk",   dahili: "1102", baslangic: _iso(15), bekleme_suresi: 75 },
+  { id: "m-3", musteri_telefon: "+90 505 671 34 12", kategori: "İade",    personel: "—",              dahili: "—",    baslangic: _iso(22), bekleme_suresi: 120 },
+  { id: "m-4", musteri_telefon: "+90 530 988 11 22", kategori: "Şikayet", personel: "Can Demir",      dahili: "1103", baslangic: _iso(34), bekleme_suresi: 65 },
+  { id: "m-5", musteri_telefon: "+90 542 555 66 77", kategori: "Bilgi",   personel: "—",              dahili: "—",    baslangic: _iso(46), bekleme_suresi: 90 },
+  { id: "m-6", musteri_telefon: "+90 537 666 77 88", kategori: "Satış",   personel: "Zeynep Arslan",  dahili: "1104", baslangic: _iso(58), bekleme_suresi: 38 },
+];
+
 /* ─── Beyaz kart paneli ─────────────────────────────────────────────────────── */
 export function Panel({ title, accentColor = "#3b82f6", children, stretch, badge, action, noPad }) {
   return (
@@ -163,9 +199,15 @@ export default function AdminOverview() {
     ]);
 
     if (cmdRes.status    === "fulfilled") setCommand(cmdRes.value.data);
-    if (hourRes.status   === "fulfilled") setHourly(hourRes.value.data  || []);
-    if (agentRes.status  === "fulfilled") setAgents(agentRes.value.data || []);
-    if (missedRes.status === "fulfilled") setMissedCalls(missedRes.value.data || []);
+
+    const hourlyData = hourRes.status === "fulfilled" ? (hourRes.value.data || []) : [];
+    setHourly(hourlyData.length > 0 ? hourlyData : MOCK_HOURLY);
+
+    const agentData = agentRes.status === "fulfilled" ? (agentRes.value.data || []) : [];
+    setAgents(agentData.length > 0 ? agentData : MOCK_AGENTS);
+
+    const missedData = missedRes.status === "fulfilled" ? (missedRes.value.data || []) : [];
+    setMissedCalls(missedData.length > 0 ? missedData : MOCK_MISSED);
 
     setLastSync(new Date());
     setLoading(false);

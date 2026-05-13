@@ -27,6 +27,74 @@ import {
 import { rulesApi }  from "@/services/api";
 import { Panel }     from "@/pages/admin/Overview";
 
+/* ─── DEMO veriler (backend boş döndüğünde gösterilir) ─── */
+const AUTO_MOCK_RULES = [
+  {
+    id: "r-1",
+    ad: "Mola Süresi Aşımı Uyarısı",
+    aciklama: "Personelin molası 5 dk'dan fazla aşarsa süpervizöre bildir.",
+    aktif: true,
+    kosul_tipi: "mola_asimi",
+    esik_degeri: 300,
+    aksiyon_tipi: "supervisor_bildirim",
+    son_tetiklenme: new Date(Date.now() - 35 * 60_000).toISOString(),
+    tetiklenme_sayisi: 12,
+  },
+  {
+    id: "r-2",
+    ad: "Uzun Görüşme XP Cezası",
+    aciklama: "Görüşme 10 dk'yı aşarsa otomatik -20 XP düş.",
+    aktif: true,
+    kosul_tipi: "uzun_konusma",
+    esik_degeri: 600,
+    aksiyon_tipi: "xp_dus",
+    son_tetiklenme: new Date(Date.now() - 120 * 60_000).toISOString(),
+    tetiklenme_sayisi: 8,
+  },
+  {
+    id: "r-3",
+    ad: "Kuyruk Kritik Eşik",
+    aciklama: "Kuyrukta 10+ çağrı varsa tüm yöneticilere e-posta gönder.",
+    aktif: true,
+    kosul_tipi: "kuyruk_kritik",
+    esik_degeri: 10,
+    aksiyon_tipi: "email_bildirim",
+    son_tetiklenme: new Date(Date.now() - 4 * 60 * 60_000).toISOString(),
+    tetiklenme_sayisi: 3,
+  },
+  {
+    id: "r-4",
+    ad: "CSAT Düşük → Eğitim Flag",
+    aciklama: "Personelin son 10 görüşmede CSAT ortalaması < 3.5 ise eğitim flag at.",
+    aktif: false,
+    kosul_tipi: "csat_dusuk",
+    esik_degeri: 3.5,
+    aksiyon_tipi: "egitim_flag",
+    son_tetiklenme: null,
+    tetiklenme_sayisi: 0,
+  },
+  {
+    id: "r-5",
+    ad: "SIP Kopması — Otomatik Logout",
+    aciklama: "Personelin SIP bağlantısı 60 sn kesik kalırsa offline yap.",
+    aktif: true,
+    kosul_tipi: "sip_kopuk",
+    esik_degeri: 60,
+    aksiyon_tipi: "otomatik_logout",
+    son_tetiklenme: new Date(Date.now() - 8 * 60 * 60_000).toISOString(),
+    tetiklenme_sayisi: 5,
+  },
+];
+
+const AUTO_MOCK_HISTORY = [
+  { id: "h-1", kural_id: "r-1", kural_ad: "Mola Süresi Aşımı Uyarısı",  hedef_ad: "Can Demir",       sonuc: "basarili", aciklama: "Süpervizör bildirimi gönderildi", tetiklenme_zamani: new Date(Date.now() - 35 * 60_000).toISOString() },
+  { id: "h-2", kural_id: "r-2", kural_ad: "Uzun Görüşme XP Cezası",     hedef_ad: "Selin Öztürk",    sonuc: "basarili", aciklama: "-20 XP düşüldü",                  tetiklenme_zamani: new Date(Date.now() - 120 * 60_000).toISOString() },
+  { id: "h-3", kural_id: "r-1", kural_ad: "Mola Süresi Aşımı Uyarısı",  hedef_ad: "Burak Yıldız",    sonuc: "basarili", aciklama: "Süpervizör bildirimi gönderildi", tetiklenme_zamani: new Date(Date.now() - 180 * 60_000).toISOString() },
+  { id: "h-4", kural_id: "r-3", kural_ad: "Kuyruk Kritik Eşik",         hedef_ad: "Sistem",          sonuc: "basarili", aciklama: "3 yöneticiye e-posta gönderildi", tetiklenme_zamani: new Date(Date.now() - 240 * 60_000).toISOString() },
+  { id: "h-5", kural_id: "r-5", kural_ad: "SIP Kopması — Otomatik Logout", hedef_ad: "Emre Yıldırım", sonuc: "basarili", aciklama: "Offline'a alındı",              tetiklenme_zamani: new Date(Date.now() - 480 * 60_000).toISOString() },
+  { id: "h-6", kural_id: "r-2", kural_ad: "Uzun Görüşme XP Cezası",     hedef_ad: "Ahmet Yılmaz",    sonuc: "basarili", aciklama: "-20 XP düşüldü",                  tetiklenme_zamani: new Date(Date.now() - 720 * 60_000).toISOString() },
+];
+
 /* ─── Sabitler ───────────────────────────────────────────────────────────── */
 const KOSUL_TIPLERI = [
   { value: "kuyruk_bekleme_sn",  label: "Kuyruk bekleme süresi (sn)" },
@@ -150,10 +218,11 @@ export default function AutomationPage() {
     setError(null);
     try {
       const r = await rulesApi.getAll();
-      setRules(Array.isArray(r.data) ? r.data : []);
+      const real = Array.isArray(r.data) ? r.data : [];
+      setRules(real.length > 0 ? real : AUTO_MOCK_RULES);
     } catch (e) {
-      setError("Kurallar yüklenemedi. Sunucu bağlantısını kontrol edin.");
-      setRules([]);
+      // Backend yok/bozuk → demo veriyle göster
+      setRules(AUTO_MOCK_RULES);
     } finally {
       setLoading(false);
     }
@@ -166,9 +235,10 @@ export default function AutomationPage() {
     setRecentLoading(true);
     try {
       const r = await rulesApi.getRecentHistory(20);
-      setRecentHist(Array.isArray(r.data) ? r.data : []);
+      const real = Array.isArray(r.data) ? r.data : [];
+      setRecentHist(real.length > 0 ? real : AUTO_MOCK_HISTORY);
     } catch {
-      setRecentHist([]);
+      setRecentHist(AUTO_MOCK_HISTORY);
     } finally {
       setRecentLoading(false);
     }

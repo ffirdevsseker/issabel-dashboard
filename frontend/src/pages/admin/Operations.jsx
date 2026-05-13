@@ -39,6 +39,53 @@ import { ADMIN_THEME } from "@/constants/adminTheme";
 
 const POLL_MS = 5_000;
 
+/* ─── DEMO veriler (backend boş döndüğünde gösterilir) ─── */
+const OPS_MOCK_CALLS = [
+  { id: "c-1", musteri_telefon: "+90 532 411 22 18", personel_ad: "Ahmet Yılmaz",   personel_id: "p-1", dahili: "1101", ekip: "Çağrı Merkezi A", baslangic: new Date(Date.now() - 215_000).toISOString(), durum: "konusuyor", kategori: "Satış",   queue_ad: "Genel Hat" },
+  { id: "c-2", musteri_telefon: "+90 545 233 88 44", personel_ad: "Selin Öztürk",   personel_id: "p-2", dahili: "1102", ekip: "Çağrı Merkezi A", baslangic: new Date(Date.now() - 88_000).toISOString(),  durum: "konusuyor", kategori: "Destek",  queue_ad: "Teknik Destek" },
+  { id: "c-3", musteri_telefon: "+90 505 671 34 12", personel_ad: "Can Demir",      personel_id: "p-3", dahili: "1103", ekip: "Satış Ekibi",     baslangic: new Date(Date.now() - 412_000).toISOString(), durum: "konusuyor", kategori: "İade",    queue_ad: "İade" },
+  { id: "c-4", musteri_telefon: "+90 530 988 11 22", personel_ad: "Zeynep Arslan",  personel_id: "p-4", dahili: "1104", ekip: "Çağrı Merkezi B", baslangic: new Date(Date.now() - 32_000).toISOString(),  durum: "konusuyor", kategori: "Şikayet", queue_ad: "VIP" },
+  { id: "c-5", musteri_telefon: "+90 542 555 66 77", personel_ad: "Mert Güven",     personel_id: "p-5", dahili: "1105", ekip: "Çağrı Merkezi B", baslangic: new Date(Date.now() - 165_000).toISOString(), durum: "konusuyor", kategori: "Bilgi",   queue_ad: "Genel Hat" },
+];
+
+const OPS_MOCK_QUEUES = [
+  { id: "q-1", ad: "Genel Hat",       bekleyen: 3, en_uzun_bekleme: 65,  ortalama_bekleme: 28, max_kapasite: 20, aktif: true,  ekip_ad: "Çağrı Merkezi" },
+  { id: "q-2", ad: "Teknik Destek",   bekleyen: 1, en_uzun_bekleme: 22,  ortalama_bekleme: 18, max_kapasite: 15, aktif: true,  ekip_ad: "Çağrı Merkezi" },
+  { id: "q-3", ad: "İade",            bekleyen: 0, en_uzun_bekleme: 0,   ortalama_bekleme: 0,  max_kapasite: 10, aktif: true,  ekip_ad: "Müşteri Hizm." },
+  { id: "q-4", ad: "VIP",             bekleyen: 2, en_uzun_bekleme: 12,  ortalama_bekleme: 8,  max_kapasite: 8,  aktif: true,  ekip_ad: "VIP" },
+  { id: "q-5", ad: "Satış",           bekleyen: 0, en_uzun_bekleme: 0,   ortalama_bekleme: 0,  max_kapasite: 12, aktif: false, ekip_ad: "Satış" },
+];
+
+const OPS_MOCK_STAFF = [
+  { id: "p-1", ad_soyad: "Ahmet Yılmaz",   dahili_no: "1101", durum: "mesgul",  ekip: "Çağrı Merkezi A", mola_baslangic: null, son_aktivite: new Date(Date.now() - 215_000).toISOString() },
+  { id: "p-2", ad_soyad: "Selin Öztürk",   dahili_no: "1102", durum: "mesgul",  ekip: "Çağrı Merkezi A", mola_baslangic: null, son_aktivite: new Date(Date.now() - 88_000).toISOString()  },
+  { id: "p-3", ad_soyad: "Can Demir",      dahili_no: "1103", durum: "mesgul",  ekip: "Satış Ekibi",     mola_baslangic: null, son_aktivite: new Date(Date.now() - 412_000).toISOString() },
+  { id: "p-4", ad_soyad: "Zeynep Arslan",  dahili_no: "1104", durum: "mesgul",  ekip: "Çağrı Merkezi B", mola_baslangic: null, son_aktivite: new Date(Date.now() - 32_000).toISOString()  },
+  { id: "p-5", ad_soyad: "Mert Güven",     dahili_no: "1105", durum: "mesgul",  ekip: "Çağrı Merkezi B", mola_baslangic: null, son_aktivite: new Date(Date.now() - 165_000).toISOString() },
+  { id: "p-6", ad_soyad: "Ayşe Koç",       dahili_no: "1106", durum: "musait",  ekip: "Çağrı Merkezi A", mola_baslangic: null, son_aktivite: new Date(Date.now() - 5_000).toISOString()   },
+  { id: "p-7", ad_soyad: "Burak Yıldız",   dahili_no: "1107", durum: "mola",    ekip: "Satış Ekibi",     mola_baslangic: new Date(Date.now() - 920_000).toISOString(), son_aktivite: null },
+  { id: "p-8", ad_soyad: "Deniz Kaya",     dahili_no: "1108", durum: "mola",    ekip: "Çağrı Merkezi B", mola_baslangic: new Date(Date.now() - 360_000).toISOString(), son_aktivite: null },
+  { id: "p-9", ad_soyad: "Emre Yıldırım",  dahili_no: "1109", durum: "offline", ekip: "Çağrı Merkezi A", mola_baslangic: null, son_aktivite: new Date(Date.now() - 7_200_000).toISOString() },
+];
+
+const OPS_MOCK_SUMMARY = {
+  aktif_cagri: 5,
+  bekleyen_cagri: 6,
+  aktif_personel: 5,
+  mola_personel: 2,
+  offline_personel: 1,
+  csat_gunluk: 4.4,
+  cevap_orani_gunluk: 92.5,
+  ortalama_konusma_sn: 158,
+};
+
+const OPS_MOCK_TEAMCOMP = [
+  { ekip_ad: "Çağrı Merkezi A", aktif: 3, mola: 0, offline: 1, cagri_sayisi: 67, cevap_orani: 94.2, ort_konusma: 152 },
+  { ekip_ad: "Çağrı Merkezi B", aktif: 2, mola: 1, offline: 0, cagri_sayisi: 48, cevap_orani: 91.3, ort_konusma: 168 },
+  { ekip_ad: "Satış Ekibi",     aktif: 1, mola: 1, offline: 0, cagri_sayisi: 32, cevap_orani: 89.5, ort_konusma: 175 },
+  { ekip_ad: "VIP",             aktif: 0, mola: 0, offline: 0, cagri_sayisi: 14, cevap_orani: 97.8, ort_konusma: 142 },
+];
+
 /* ─── Statü renk haritası ────────────────────────────────────────────────── */
 const D = {
   aktif:   { label: "Aktif",   color: "#10b981", bg: "rgba(16,185,129,0.09)" },
@@ -1087,11 +1134,18 @@ export default function Operations() {
     const get = (i) =>
       results[i]?.status === "fulfilled" ? results[i].value.data : null;
 
-    if (get(0) !== null) setCalls(get(0));
-    if (get(1) !== null) setQueues(get(1));
-    if (get(2) !== null) setStaff(get(2));
-    if (get(3) !== null) setSummary(get(3));
-    if (get(4) !== null) setTeamComp(Array.isArray(get(4)) ? get(4) : []);
+    const realCalls    = Array.isArray(get(0)) ? get(0) : [];
+    const realQueues   = Array.isArray(get(1)) ? get(1) : [];
+    const realStaff    = Array.isArray(get(2)) ? get(2) : [];
+    const realSummary  = get(3);
+    const realTeamComp = Array.isArray(get(4)) ? get(4) : [];
+
+    // Boşsa demo veriyle doldur — sunum boş durmasın
+    setCalls(realCalls.length    > 0 ? realCalls    : OPS_MOCK_CALLS);
+    setQueues(realQueues.length  > 0 ? realQueues   : OPS_MOCK_QUEUES);
+    setStaff(realStaff.length    > 0 ? realStaff    : OPS_MOCK_STAFF);
+    setSummary(realSummary || OPS_MOCK_SUMMARY);
+    setTeamComp(realTeamComp.length > 0 ? realTeamComp : OPS_MOCK_TEAMCOMP);
     setSummaryLoading(false);
     setLoading(false);
     if (manual) setRefreshing(false);

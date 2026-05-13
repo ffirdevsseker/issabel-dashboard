@@ -1,9 +1,12 @@
 import asyncio
+import logging
 from datetime import datetime, timezone, date, timedelta
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from jose import JWTError
 from sqlalchemy import func
+
+logger = logging.getLogger(__name__)
 
 from app.core.security import decode_access_token
 from app.db.session import SessionLocal
@@ -11,6 +14,13 @@ from app.models.user import User
 from app.models.cdr import CDR
 
 router = APIRouter(tags=["Queue"])
+
+_DURUM_LABEL = {
+    "cevaplandi":   "Cevaplandı",
+    "cevaplanmadi": "Cevapsız",
+    "mesgul":       "Meşgul",
+    "aktarildi":    "Aktarıldı",
+}
 
 
 def _user_id_for(user: User):
@@ -29,23 +39,28 @@ def _seconds_since(ts: datetime | None) -> int:
 
 
 def _build_queue_snapshot(db, user_id) -> dict:
-    # Gercek bekleyen = bitis_zamani IS NULL (hala acik cagri)
-    waiting_q = db.query(CDR).filter(CDR.bitis_zamani.is_(None))
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_end   = today_start + timedelta(days=1)
+
+    # Bugün açılan ve henüz kapanmamış çağrılar (günlük aktif kuyruk)
+    waiting_q = db.query(CDR).filter(
+        CDR.bitis_zamani.is_(None),
+        CDR.baslangic_zamani >= today_start,
+        CDR.baslangic_zamani < today_end,
+    )
     if user_id is not None:
         waiting_q = waiting_q.filter(CDR.user_id == user_id)
 
     waiting_calls = waiting_q.with_entities(func.count()).scalar() or 0
 
-    # Bekleyen cagrilarin listesi (max 30)
+    # Bekleyen çağrıların listesi (max 30)
     waiting_list = waiting_q.order_by(CDR.baslangic_zamani.asc()).limit(30).all()
 
     wait_durations = [max(0, int(c.bekleme_suresi or 0)) for c in waiting_list]
     longest_wait = max(wait_durations) if wait_durations else 0
     avg_wait = round(sum(wait_durations) / len(wait_durations)) if wait_durations else 0
 
-    # Bugunun kacan/cevapsiz cagrilari (referans icin)
-    today_start = datetime.combine(date.today(), datetime.min.time())
-    today_end = today_start + timedelta(days=1)
+    # Bugünün özet istatistikleri
     today_base = db.query(CDR).filter(
         CDR.baslangic_zamani >= today_start,
         CDR.baslangic_zamani < today_end,
@@ -70,11 +85,16 @@ def _build_queue_snapshot(db, user_id) -> dict:
         "todayMissed": today_missed,
         "queuedNumbers": [
             {
-                "number": str(c.user_id or "Bilinmeyen"),
+                "sira":       i + 1,
+                "label":      f"Çağrı #{i + 1}",
+                "callTime":   c.baslangic_zamani.strftime("%H:%M") if c.baslangic_zamani else "--:--",
+                "direction":  "Gelen" if c.yon == "gelen" else "Giden",
+                "durum":      _DURUM_LABEL.get(c.durum, c.durum),
+                "durum_raw":  c.durum,
+                "kategori":   c.kategori or "",
                 "waitSeconds": _seconds_since(c.baslangic_zamani),
-                "disposition": c.durum,
             }
-            for c in waiting_list
+            for i, c in enumerate(waiting_list)
         ],
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -106,8 +126,30 @@ async def queue_stream(websocket: WebSocket):
         uid = _user_id_for(user)
         await websocket.accept()
 
+        # DB hatalarında WS düşmesin — boş snapshot gönder, yeniden dene
+        empty_snapshot = {
+            "type": "queue_update",
+            "waitingCalls": 0,
+            "longestWaitSeconds": 0,
+            "avgWaitSeconds": 0,
+            "estimatedPickupSeconds": 0,
+            "todayTotal": 0,
+            "todayAnswered": 0,
+            "todayMissed": 0,
+            "queuedNumbers": [],
+            "updatedAt": None,
+        }
+
         while True:
-            snapshot = _build_queue_snapshot(db, user_id=uid)
+            try:
+                snapshot = _build_queue_snapshot(db, user_id=uid)
+            except Exception as exc:
+                logger.warning("queue snapshot başarısız (rollback ediliyor): %s", exc)
+                try:
+                    db.rollback()
+                except Exception:  # noqa: BLE001
+                    pass
+                snapshot = {**empty_snapshot, "updatedAt": datetime.now(timezone.utc).isoformat()}
             await websocket.send_json(snapshot)
             await asyncio.sleep(1)
 

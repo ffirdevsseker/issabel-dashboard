@@ -13,7 +13,8 @@ class KbMakale(Base):
     id               = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     baslik           = Column(String(255), nullable=False)
     icerik           = Column(Text, default="")
-    kategori         = Column(String(64), default="")
+    # DB'de kolon adı `kategori_id` — attribute adını koruyoruz ama gerçek kolonu eşliyoruz
+    kategori         = Column("kategori_id", String(64), default="")
     olusturan_id     = Column(PGUUID(as_uuid=True), ForeignKey("kullanicilar.id"), nullable=True)
     aktif            = Column(Boolean, default=True)
     olusturma_tarihi = Column(DateTime, server_default=func.now())

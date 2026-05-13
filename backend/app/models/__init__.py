@@ -8,6 +8,7 @@ from app.models.complaint import Sikayet
 from app.models.kb import KbMakale, KbOneri
 from app.models.audit import DenetimIzi
 from app.models.dashboard import DashboardModul, RolModul
+from app.models.callback import CallbackTakip
 
 __all__ = [
     "CDR", "Rol", "User",
@@ -15,5 +16,6 @@ __all__ = [
     "Vardiya", "VardiyaTalep",
     "Mola",
     "Sikayet", "KbMakale", "KbOneri", "DenetimIzi",
-    "DashboardModul", "RolModul"
+    "DashboardModul", "RolModul",
+    "CallbackTakip",
 ]

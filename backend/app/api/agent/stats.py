@@ -1,126 +1,270 @@
 """
-Agent · Günlük İstatistikler, Öncelikler ve Geri Arama Listesi
---------------------------------------------------------------
-GET /agent/stats/today   — Bugünkü KPI özeti  (ekip geneli)
-GET /agent/priorities    — CDR'den türetilen dinamik öncelikler
-GET /agent/callbacks     — Bugün cevaplanmadi / mesgul çağrılar
+Agent · Kişisel KPI + Ekip Cevapsız Takibi
+------------------------------------------
+GET  /agent/stats/today          — Kullanıcıya özel bugünkü KPI
+GET  /agent/priorities           — Kişisel + ekip öncelikleri
+GET  /agent/callbacks            — Bugün cevapsız/meşgul + takip durumu
+POST /agent/callbacks/{id}/track — Geri arama durumunu güncelle
 
-NOT: Cevapsız / meşgul çağrıların user_id'si NULL olur (hiçbir temsilci
-     cevap vermemiş). Bu nedenle tüm agent endpoint'leri user_id filtresi
-     uygulamadan bugünün ekip geneli verisini döner.
+Tasarım kararı:
+  · answered / total / avg_duration → user_id filtreli  (kişisel)
+  · no_answer / busy                → filtre yok        (ekip geneli)
+    Cevapsız çağrılarda user_id = NULL olduğundan kişisel filtreyle
+    yakalanmazlar; ekip adına geri arama görevi herkese görünür.
 """
+import logging
+import uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db.async_session import get_async_db
 from app.models.user import User
+from app.models.callback import CallbackTakip
 from app.services import cdr_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
 
+_EMPTY_STATS = {
+    "total_calls":            0,
+    "answered_calls":         0,
+    "no_answer_calls":        0,
+    "busy_calls":             0,
+    "failed_calls":           0,
+    "total_duration_seconds": 0,
+    "avg_duration_seconds":   0.0,
+    "answer_rate_percent":    0.0,
+}
 
-# ── GET /agent/stats/today ──────────────────────────────────────────────────
+_REASON_MAP = {
+    "cevaplanmadi": "Cevapsız",
+    "mesgul":       "Meşgul Hat",
+}
+
+_TAKIP_LABEL = {
+    "bekliyor":    "Bekliyor",
+    "arandı":      "Arandı",
+    "ulasilamadi": "Ulaşılamadı",
+    "tamamlandi":  "Tamamlandı",
+}
+
+
+# ── GET /agent/stats/today ───────────────────────────────────────────────────
 @router.get("/stats/today")
 async def agent_today_stats(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Bugüne ait ekip geneli çağrı KPI'larını döner."""
-    return await cdr_service.get_call_stats(db, user_id=None, today_only=True)
+    """
+    Kişisel performans + ekip cevapsız sayısı.
+    DB hatasında sıfırlanmış güvenli payload döner — frontend çökmesin.
+    """
+    try:
+        personal = await cdr_service.get_call_stats(
+            db, user_id=current_user.id, today_only=True
+        )
+        team = await cdr_service.get_call_stats(
+            db, user_id=None, today_only=True
+        )
+    except Exception as exc:
+        logger.warning("agent_today_stats başarısız: %s", exc)
+        personal = dict(_EMPTY_STATS)
+        team = dict(_EMPTY_STATS)
+    return {
+        # Kişisel: bu agent'ın cevapladığı çağrılar
+        "total_calls":            personal["total_calls"],
+        "answered_calls":         personal["answered_calls"],
+        "avg_duration_seconds":   personal["avg_duration_seconds"],
+        "total_duration_seconds": personal["total_duration_seconds"],
+        "answer_rate_percent":    personal["answer_rate_percent"],
+        # Ekip geneli: cevapsız çağrılar (user_id = NULL)
+        "no_answer_calls":        team["no_answer_calls"],
+        "busy_calls":             team["busy_calls"],
+        "failed_calls":           team["failed_calls"],
+        # Ekip toplamı (referans için)
+        "team_total":             team["total_calls"],
+        "team_answered":          team["answered_calls"],
+    }
 
 
-# ── GET /agent/priorities ───────────────────────────────────────────────────
+# ── GET /agent/priorities ────────────────────────────────────────────────────
 @router.get("/priorities")
 async def agent_priorities(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Bugünkü CDR verisinden dinamik olarak türetilen öncelik listesi."""
-    stats = await cdr_service.get_call_stats(db, user_id=None, today_only=True)
+    """Kişisel CDR verisi + ekip cevapsızlarından türetilen öncelikler."""
+    try:
+        personal = await cdr_service.get_call_stats(
+            db, user_id=current_user.id, today_only=True
+        )
+        team = await cdr_service.get_call_stats(
+            db, user_id=None, today_only=True
+        )
+    except Exception as exc:
+        logger.warning("agent_priorities başarısız: %s", exc)
+        return []
     priorities = []
 
-    missed = stats["no_answer_calls"] + stats["busy_calls"]
+    # Ekip geneli cevapsız (geri arama görevi)
+    missed = team["no_answer_calls"] + team["busy_calls"]
     if missed > 0:
         priorities.append({
             "id":          "missed_callbacks",
             "priority":    "high",
-            "title":       f"{missed} cevapsız çağrı geri aranmayı bekliyor",
+            "title":       f"Ekipte {missed} cevapsız çağrı geri aranmayı bekliyor",
             "description": "Bugün cevaplanmayan ve meşgul çağrılar",
             "status":      "pending",
         })
 
-    avg_sec = stats["avg_duration_seconds"]
+    # Kişisel ortalama süre uyarısı
+    avg_sec = personal["avg_duration_seconds"]
     if avg_sec > 300:
         over = int(avg_sec - 300)
         priorities.append({
             "id":          "long_duration",
             "priority":    "medium",
-            "title":       f"Ortalama görüşme süresi {int(avg_sec // 60)}d {int(avg_sec % 60)}s",
+            "title":       f"Görüşme ortalamanız {int(avg_sec // 60)}d {int(avg_sec % 60)}s",
             "description": f"5 dakika hedefini {over // 60}d {over % 60}s aşıyor",
             "status":      "pending",
         })
 
-    total    = stats["total_calls"]
-    answered = stats["answered_calls"]
-    rate     = stats["answer_rate_percent"]
+    # Kişisel çağrı özeti
+    total    = personal["total_calls"]
+    answered = personal["answered_calls"]
+    rate     = personal["answer_rate_percent"]
     if total > 0:
         priorities.append({
             "id":          "call_summary",
             "priority":    "low",
-            "title":       f"Bugün {answered} / {total} çağrı cevaplandı",
-            "description": f"Yanıt oranı: %{round(rate, 1)}",
+            "title":       f"Bugün {answered} çağrı cevapladınız",
+            "description": f"Kişisel yanıt oranınız: %{round(rate, 1)}",
             "status":      "pending" if rate < 80 else "completed",
             "progress":    min(100, int(rate)),
         })
 
-    # Bugün hiç çağrı yoksa bilgilendirici öncelik ekle
     if total == 0:
         priorities.append({
             "id":          "no_calls_yet",
             "priority":    "low",
-            "title":       "Bugün henüz çağrı kaydı yok",
-            "description": "Çağrılar geldikçe öncelikler otomatik güncellenecek",
+            "title":       "Bugün henüz çağrı almadınız",
+            "description": "Çağrılarınız geldikçe istatistikler burada görünecek",
             "status":      "completed",
         })
 
     return priorities
 
 
-# ── GET /agent/callbacks ────────────────────────────────────────────────────
+# ── GET /agent/callbacks ─────────────────────────────────────────────────────
 @router.get("/callbacks")
 async def agent_callbacks(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Bugünkü cevapsız/meşgul + takip durumu.
+    callback_takip tablosu yoksa veya CDR sorgusu çökerse boş liste döner.
     """
-    Bugün cevapsız (cevaplanmadi) ve meşgul (mesgul) çağrıları döner.
-    user_id filtresi uygulanmaz — cevapsız çağrılarda user_id NULL olur.
-    """
-    rows = await cdr_service.get_today_missed_calls(db, user_id=None)
+    # 1) CDR cevapsız listesi
+    try:
+        rows = await cdr_service.get_today_missed_calls(db, user_id=None)
+    except Exception as exc:
+        logger.warning("agent_callbacks CDR sorgusu başarısız: %s", exc)
+        return []
 
-    REASON_MAP = {
-        "cevaplanmadi": "Cevapsız",
-        "mesgul":       "Meşgul Hat",
-    }
+    # 2) Takip kayıtları (tablo yoksa boş map kullan)
+    cdr_ids = [row.id for row in rows]
+    takip_map: dict[uuid.UUID, CallbackTakip] = {}
+    if cdr_ids:
+        try:
+            stmt = select(CallbackTakip).where(CallbackTakip.cdr_id.in_(cdr_ids))
+            result = await db.execute(stmt)
+            for t in result.scalars().all():
+                if t.cdr_id not in takip_map or t.guncelleme_zamani > takip_map[t.cdr_id].guncelleme_zamani:
+                    takip_map[t.cdr_id] = t
+        except Exception as exc:
+            logger.warning("callback_takip sorgusu başarısız (tablo yok olabilir): %s", exc)
+            # Boş map ile devam et — her satır "bekliyor" olarak işlenir
+            await db.rollback()
 
-    result = []
+    # 3) Satırları serileştir
+    result_list = []
     for i, row in enumerate(rows, start=1):
-        t: datetime = row.baslangic_zamani
-        result.append({
-            "id":        str(row.id),
-            "name":      f"Müşteri #{i}",
-            "number":    f"#{i}",
-            "reason":    REASON_MAP.get(row.durum, row.durum),
-            "time":      t.strftime("%H:%M") if t else "--:--",
-            "age":       _age_label(t),
-            "durum":     row.durum,
-            "detail":    REASON_MAP.get(row.durum, row.durum),
-            "kategori":  row.kategori or "",
-        })
+        try:
+            t: datetime = row.baslangic_zamani
+            takip = takip_map.get(row.id)
+            takip_durum = takip.durum if takip else "bekliyor"
 
-    return result
+            result_list.append({
+                "id":          str(row.id),
+                "name":        f"Müşteri #{i}",
+                "reason":      _REASON_MAP.get(row.durum, row.durum),
+                "time":        t.strftime("%H:%M") if t else "--:--",
+                "age":         _age_label(t),
+                "durum":       row.durum,
+                "detail":      _REASON_MAP.get(row.durum, row.durum),
+                "kategori":    row.kategori or "",
+                "takip_durum": takip_durum,
+                "takip_label": _TAKIP_LABEL.get(takip_durum, takip_durum),
+            })
+        except Exception as exc:
+            logger.warning("Callback satırı serileştirilemedi (id=%s): %s", getattr(row, "id", "?"), exc)
+            continue
+
+    return result_list
+
+
+# ── POST /agent/callbacks/{cdr_id}/track ─────────────────────────────────────
+class TrackPayload(BaseModel):
+    durum: Literal["bekliyor", "arandı", "ulasilamadi", "tamamlandi"]
+
+
+@router.post("/callbacks/{cdr_id}/track")
+async def track_callback(
+    cdr_id: uuid.UUID,
+    payload: TrackPayload,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        stmt = select(CallbackTakip).where(
+            CallbackTakip.cdr_id   == cdr_id,
+            CallbackTakip.agent_id == current_user.id,
+        )
+        result = await db.execute(stmt)
+        takip = result.scalar_one_or_none()
+
+        if takip:
+            takip.durum = payload.durum
+            takip.guncelleme_zamani = datetime.utcnow()
+        else:
+            takip = CallbackTakip(
+                cdr_id   = cdr_id,
+                agent_id = current_user.id,
+                durum    = payload.durum,
+            )
+            db.add(takip)
+
+        await db.commit()
+        return {
+            "cdr_id":      str(cdr_id),
+            "takip_durum": takip.durum,
+            "takip_label": _TAKIP_LABEL.get(takip.durum, takip.durum),
+        }
+    except Exception as exc:
+        logger.warning("track_callback başarısız (cdr_id=%s): %s", cdr_id, exc)
+        await db.rollback()
+        # 503: tablo yok / DB problemi — frontend optimistic UI'ı koruyabilir
+        raise HTTPException(
+            status_code=503,
+            detail="Takip kaydı oluşturulamadı (callback_takip tablosu hazır olmayabilir).",
+        )
 
 
 def _age_label(dt: datetime | None) -> str:

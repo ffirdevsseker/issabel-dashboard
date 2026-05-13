@@ -8,6 +8,9 @@ const DEFAULT_QUEUE = {
   avgWait: 0,
   estimatedPickup: 0,
   queuedNumbers: [],
+  todayTotal: 0,
+  todayAnswered: 0,
+  todayMissed: 0,
 };
 
 export function QueueStatusProvider({ children }) {
@@ -41,6 +44,21 @@ export function QueueStatusProvider({ children }) {
     let socket = null;
     let reconnectTimer = null;
 
+    const safeClose = (s) => {
+      if (!s) return;
+      // CONNECTING (0) → onopen anında kapat (closed-before-established uyarısını önler)
+      if (s.readyState === WebSocket.CONNECTING) {
+        s.addEventListener("open", () => {
+          try { s.close(1000, "unmount"); } catch { /* ignore */ }
+        }, { once: true });
+        return;
+      }
+      // OPEN (1) → direkt kapat
+      if (s.readyState === WebSocket.OPEN) {
+        try { s.close(1000, "unmount"); } catch { /* ignore */ }
+      }
+    };
+
     const connect = () => {
       if (isUnmounted) return;
 
@@ -69,7 +87,10 @@ export function QueueStatusProvider({ children }) {
             longestWait,
             avgWait,
             estimatedPickup,
-            queuedNumbers: Array.isArray(payload.queuedNumbers) ? payload.queuedNumbers : [],
+            queuedNumbers:  Array.isArray(payload.queuedNumbers) ? payload.queuedNumbers : [],
+            todayTotal:     Number(payload.todayTotal    || 0),
+            todayAnswered:  Number(payload.todayAnswered || 0),
+            todayMissed:    Number(payload.todayMissed   || 0),
           });
 
           setLastUpdatedAt(payload.updatedAt || new Date().toISOString());
@@ -96,7 +117,7 @@ export function QueueStatusProvider({ children }) {
     return () => {
       isUnmounted = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (socket && socket.readyState < 2) socket.close();
+      safeClose(socket);
     };
   }, []);
 

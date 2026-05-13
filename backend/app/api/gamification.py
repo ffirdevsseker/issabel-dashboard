@@ -9,6 +9,8 @@ Düzeltme notu (Sprint 7-C bugfix):
   dönüyordu. Artık personnel.py pattern'ine uygun olarak `roller` tablosuna
   join atılıp `LOWER(ad) = 'personel'` ile süzülüyor.
 """
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.async_session import get_async_db
 from app.models.user import User
 from app.api.deps import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/gamification", tags=["Gamification"])
 
@@ -27,23 +31,26 @@ async def get_leaderboard(
 ):
     """
     kullanicilar + roller join'i — sadece role adı 'personel' olanlar, XP desc.
-    Boş dahili filtresi yumuşatıldı: dahili_no NULL ise yine listeye girer
-    (sıralama bilgisi değer kaybetmesin).
+    DB hatasında boş liste döner (frontend mock veya skeleton gösterir).
     """
-    rows = (await db.execute(text("""
-        SELECT
-            u.id::text                              AS id,
-            COALESCE(u.ad_soyad, u.kullanici_adi)   AS ad_soyad,
-            u.dahili_no                             AS dahili_no,
-            COALESCE(u.xp, 0)                       AS xp,
-            COALESCE(u.unvan, '')                   AS unvan
-        FROM kullanicilar u
-        JOIN roller r ON r.id = u.rol_id
-        WHERE u.silindi_mi = FALSE
-          AND LOWER(r.ad) = 'personel'
-        ORDER BY COALESCE(u.xp, 0) DESC, u.ad_soyad ASC
-        LIMIT 50
-    """))).fetchall()
+    try:
+        rows = (await db.execute(text("""
+            SELECT
+                u.id::text                              AS id,
+                COALESCE(u.ad_soyad, u.kullanici_adi)   AS ad_soyad,
+                u.dahili_no                             AS dahili_no,
+                COALESCE(u.xp, 0)                       AS xp,
+                COALESCE(u.unvan, '')                   AS unvan
+            FROM kullanicilar u
+            JOIN roller r ON r.id = u.rol_id
+            WHERE u.silindi_mi = FALSE
+              AND LOWER(r.ad) = 'personel'
+            ORDER BY COALESCE(u.xp, 0) DESC, u.ad_soyad ASC
+            LIMIT 50
+        """))).fetchall()
+    except Exception as exc:
+        logger.warning("leaderboard sorgusu başarısız: %s", exc)
+        return []
 
     leaderboard = []
     for idx, r in enumerate(rows):

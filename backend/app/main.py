@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def on_startup():
     try:
-        # Senkron engine ile tabloları oluştur
+        # Senkron engine ile tabloları oluştur — eksik tabloları (örn. callback_takip) ekler
         Base.metadata.create_all(bind=engine)
+        created_tables = sorted(Base.metadata.tables.keys())
+        logger.info("DB tabloları hazır (%d tane): %s", len(created_tables), ", ".join(created_tables[:8]) + ("..." if len(created_tables) > 8 else ""))
         # Asenkron seeding yap
         await seed_db()
     except Exception as exc:
@@ -36,6 +38,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
     ],
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,

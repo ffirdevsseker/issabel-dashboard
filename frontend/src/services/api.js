@@ -50,10 +50,11 @@ export const supervisorApi = {
 };
 
 export const agentApi = {
-  getKbArticles:   ()   => api.get("/kb/articles"),
-  getTodayStats:   ()   => api.get("/agent/stats/today"),
-  getPriorities:   ()   => api.get("/agent/priorities"),
-  getCallbackList: ()   => api.get("/agent/callbacks"),
+  getKbArticles:   ()              => api.get("/kb/articles"),
+  getTodayStats:   ()              => api.get("/agent/stats/today"),
+  getPriorities:   ()              => api.get("/agent/priorities"),
+  getCallbackList: ()              => api.get("/agent/callbacks"),
+  trackCallback:   (id, durum)     => api.post(`/agent/callbacks/${id}/track`, { durum }),
 };
 
 export const adminApi = {

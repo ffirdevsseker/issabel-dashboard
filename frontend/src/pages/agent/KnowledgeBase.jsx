@@ -1,5 +1,130 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { agentApi } from "@/services/api";
+
+/* ─── useDebounce — değeri belirli süre sabit kaldıktan sonra döndürür ── */
+function useDebounce(value, delay = 200) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+/* ─── renderMarkdown — basit markdown → JSX (sınırlı altküme) ─────── */
+function renderMarkdown(text) {
+  const src = String(text ?? "");
+  if (!src.trim()) {
+    return <p className="text-slate-400 italic">İçerik bulunmuyor.</p>;
+  }
+
+  const lines = src.split(/\r?\n/);
+  const blocks = [];
+  let listBuffer = [];
+
+  const flushList = (key) => {
+    if (listBuffer.length === 0) return;
+    blocks.push(
+      <ul key={`ul-${key}`} className="list-disc pl-5 space-y-1 my-2 text-slate-700 text-[13px]">
+        {listBuffer.map((item, i) => (
+          <li key={i}>{renderInline(item)}</li>
+        ))}
+      </ul>
+    );
+    listBuffer = [];
+  };
+
+  lines.forEach((rawLine, idx) => {
+    const line = rawLine.trimEnd();
+
+    // Liste maddesi
+    const liMatch = /^\s*[-*]\s+(.*)$/.exec(line);
+    if (liMatch) {
+      listBuffer.push(liMatch[1]);
+      return;
+    }
+
+    // Liste değilse önceki listeyi kapat
+    flushList(idx);
+
+    // Başlıklar
+    const h3 = /^###\s+(.*)$/.exec(line);
+    const h2 = /^##\s+(.*)$/.exec(line);
+    const h1 = /^#\s+(.*)$/.exec(line);
+    if (h3) {
+      blocks.push(<h4 key={idx} className="text-[13px] font-bold text-slate-800 mt-3 mb-1">{renderInline(h3[1])}</h4>);
+      return;
+    }
+    if (h2) {
+      blocks.push(<h3 key={idx} className="text-[14px] font-bold text-slate-800 mt-4 mb-1.5">{renderInline(h2[1])}</h3>);
+      return;
+    }
+    if (h1) {
+      blocks.push(<h2 key={idx} className="text-[15px] font-extrabold text-slate-900 mt-4 mb-2">{renderInline(h1[1])}</h2>);
+      return;
+    }
+
+    // Boş satır
+    if (line.trim() === "") {
+      blocks.push(<div key={idx} className="h-2" />);
+      return;
+    }
+
+    // Normal paragraf
+    blocks.push(<p key={idx} className="text-[13px] text-slate-700 leading-relaxed my-1">{renderInline(line)}</p>);
+  });
+
+  flushList("end");
+  return <div className="prose-sm max-w-none">{blocks}</div>;
+}
+
+/* Inline: **bold**, *italic*, `code` */
+function renderInline(line) {
+  const parts = [];
+  let rest = line;
+  let key = 0;
+  const re = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`)/;
+  while (rest) {
+    const m = re.exec(rest);
+    if (!m) { parts.push(rest); break; }
+    if (m.index > 0) parts.push(rest.slice(0, m.index));
+    if (m[2] !== undefined) {
+      parts.push(<strong key={`b-${key++}`} className="font-bold text-slate-900">{m[2]}</strong>);
+    } else if (m[3] !== undefined) {
+      parts.push(<em key={`i-${key++}`} className="italic">{m[3]}</em>);
+    } else if (m[4] !== undefined) {
+      parts.push(<code key={`c-${key++}`} className="px-1 py-0.5 rounded bg-slate-100 text-rose-600 text-[12px] font-mono">{m[4]}</code>);
+    }
+    rest = rest.slice(m.index + m[0].length);
+  }
+  return parts;
+}
+
+/* ─── fmtDate — ISO/string tarihi tr-TR formatına çevirir ──────────── */
+function fmtDate(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* ─── highlight — aranan kelimeyi <mark> ile sarar ─────────────────── */
+function highlight(text, query) {
+  const s = String(text ?? "");
+  const q = String(query ?? "").trim();
+  if (!q) return s;
+  try {
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig");
+    const parts = s.split(re);
+    return parts.map((part, i) =>
+      i % 2 === 1
+        ? <mark key={i} className="bg-amber-200/70 text-amber-900 rounded px-0.5">{part}</mark>
+        : part
+    );
+  } catch {
+    return s;
+  }
+}
 import {
   Search, Sparkles, ChevronRight, ChevronDown,
   Copy, Printer, ThumbsUp, ThumbsDown,
@@ -33,12 +158,13 @@ const PAGE_STYLES = `
 /* ─────────────────────────────── MOCK DATA (Categories only, dynamic articles) ──────────────────────────── */
 const CATEGORIES = [
   {
-    id: "urunler", label: "Ürünler & Markalar", icon: Package, count: 16,
+    id: "urunler", label: "Ürünler & Markalar", icon: Package, count: 20,
     children: [
       { id: "ayakkabi", label: "Ayakkabı",          count: 5 },
       { id: "giyim",    label: "Giyim & Takım",     count: 5 },
       { id: "aksesuar", label: "Aksesuar & Ekipman", count: 4 },
       { id: "markalar", label: "Marka Rehberi",      count: 2 },
+      { id: "sporthink", label: "Sporthink Özel",   count: 4 },
     ],
   },
   { id: "kargo",       label: "Kargo & Teslimat",      icon: Wrench,        count: 5,  children: [] },
@@ -55,58 +181,94 @@ const CATEGORIES = [
   { id: "acil",        label: "Acil Durum Yönergeleri", icon: AlertTriangle, count: 2,  children: [] },
 ];
 
-/* ─────────────────────────────── HELPERS ────────────────────────────── */
-function useDebounce(value, delay) {
-  const [dv, setDv] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDv(value), delay);
-    return () => clearTimeout(t);
-  }, [value, delay]);
-  return dv;
-}
+const SPORTHINK_MOCK_ARTICLES = [
+  {
+    id: "sp1",
+    categoryId: "sporthink",
+    categoryLabel: "Sporthink Özel",
+    title: "Sporthink Mağaza Değişim Prosedürü",
+    preview: "Müşterilerin online alınan ürünleri mağazadan değişim şartları ve süreci hakkında bilgiler.",
+    updatedAt: new Date().toISOString(),
+    author: "Sistem",
+    tags: ["sporthink", "değişim", "mağaza"],
+    related: [],
+    content: `## Sporthink Mağaza Değişim Prosedürü
+### Genel Kurallar
+Sporthink online mağazasından alınan ürünler, teslimat tarihinden itibaren **14 gün** içerisinde tüm Sporthink fiziksel mağazalarından değiştirilebilir.
 
-function fmtDate(iso) {
-  return new Date(iso).toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
-}
+### Gerekli Belgeler
+- Fatura veya E-Arşiv Fatura çıktısı
+- Ürünün orijinal kutusu ve etiketleri
 
-function highlight(text, query) {
-  if (!query) return text;
-  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
-  return parts.map((p, i) =>
-    p.toLowerCase() === query.toLowerCase()
-      ? <mark key={i} className="bg-amber-200/70 text-amber-900 rounded-[2px] px-0.5">{p}</mark>
-      : p
-  );
-}
+### İstisnalar
+> İç giyim, mayo ve kişiselleştirilmiş (isim yazılı forma vb.) ürünlerde hijyen ve özel üretim sebebiyle değişim yapılmamaktadır.
 
-function renderMarkdown(text) {
-  return text.split("\n").map((line, i) => {
-    if (line.startsWith("## "))
-      return <h3 key={i} className="text-[14px] font-extrabold text-slate-800 mt-4 mb-1.5 first:mt-0">{line.slice(3)}</h3>;
-    if (line.startsWith("### "))
-      return <h4 key={i} className="text-[12px] font-bold text-slate-700 uppercase tracking-wide mt-3 mb-1">{line.slice(4)}</h4>;
-    if (line.startsWith("> "))
-      return <blockquote key={i} className="border-l-2 border-amber-400 pl-3 my-2 py-1.5 text-[12px] text-amber-800 bg-amber-50 rounded-r-lg pr-3">{renderBold(line.slice(2))}</blockquote>;
-    if (/^\d+\. /.test(line)) {
-      const [num, ...rest] = line.split(". ");
-      return <div key={i} className="flex gap-2 my-1"><span className="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 rounded-full h-4 w-4 flex items-center justify-center shrink-0 mt-0.5">{num}</span><span className="text-[12px] text-slate-700 leading-relaxed">{renderBold(rest.join(". "))}</span></div>;
-    }
-    if (line.startsWith("- "))
-      return <div key={i} className="flex gap-2 my-0.5"><span className="text-emerald-500 text-[10px] mt-1.5 shrink-0">●</span><span className="text-[12px] text-slate-700 leading-relaxed">{renderBold(line.slice(2))}</span></div>;
-    if (line === "")
-      return <div key={i} className="h-1.5" />;
-    return <p key={i} className="text-[12px] text-slate-600 leading-relaxed">{renderBold(line)}</p>;
-  });
-}
+### Personel Notu
+Müşteriyi en yakın mağazaya yönlendirirken mağaza stok durumunu kontrol etmenize gerek yoktur, müşteri dilediği ürünle fark ödeyerek değişim yapabilir.`
+  },
+  {
+    id: "sp2",
+    categoryId: "sporthink",
+    categoryLabel: "Sporthink Özel",
+    title: "Sporthink Card Puan Kullanımı",
+    preview: "Sporthink Card sadakat programı puan kazanımı ve harcama detayları.",
+    updatedAt: new Date().toISOString(),
+    author: "Sistem",
+    tags: ["sadakat", "puan", "sporthink card"],
+    related: ["sp1"],
+    content: `## Sporthink Card Sadakat Programı
+### Puan Kazanımı
+Her 100 TL'lik alışverişte **5 Sporthink Puan** kazanılır. (1 Puan = 1 TL)
 
-function renderBold(text) {
-  const parts = String(text).split(/(\*\*.*?\*\*)/g);
-  return parts.map((p, i) =>
-    p.startsWith("**") && p.endsWith("**")
-      ? <strong key={i} className="font-semibold text-slate-800">{p.slice(2, -2)}</strong>
-      : p
-  );
-}
+### Puan Harcama
+- Puanlar sadece asıl üründe (indirimli olmayan) kullanılabilir.
+- Minimum 50 puan biriktiğinde harcama yapılabilir.
+
+### Üyelik Avantajları
+1. Doğum günlerinde 2 kat puan.
+2. Yeni sezon ürünlerde öncelikli erişim.
+3. Kargo bedava kampanyalarından sınırsız yararlanma.`
+  },
+  {
+    id: "sp3",
+    categoryId: "sporthink",
+    categoryLabel: "Sporthink Özel",
+    title: "Orijinallik Garantisi ve Tedarikçiler",
+    preview: "Sporthink bünyesinde satılan markaların orijinallik belgeleri ve garanti süreçleri.",
+    updatedAt: new Date().toISOString(),
+    author: "Sistem",
+    tags: ["orijinallik", "nike", "adidas", "puma"],
+    related: [],
+    content: `## Orijinallik Garantisi
+Sporthink, sattığı tüm markaların (Nike, Adidas, Puma, Skechers vb.) **resmi yetkili satıcısıdır**.
+
+### Garanti Süreci
+- Ayakkabılarda üretim hatalarına karşı **6 ay** inceleme garantisi mevcuttur.
+- İnceleme süresi ortalama **21 iş günüdür**.
+
+### Tedarikçi Bilgileri
+Ürünler doğrudan markaların Türkiye distribütörlerinden veya global genel merkezlerinden tedarik edilmektedir. Faturamız aynı zamanda orijinallik belgesi hükmündedir.`
+  },
+  {
+    id: "sp4",
+    categoryId: "sporthink",
+    categoryLabel: "Sporthink Özel",
+    title: "Sporthink Mobil Uygulama Desteği",
+    preview: "Mobil uygulamaya özel indirim kodları ve teknik destek adımları.",
+    updatedAt: new Date().toISOString(),
+    author: "Sistem",
+    tags: ["mobil", "app", "teknik destek"],
+    related: ["sp2"],
+    content: `## Sporthink Mobil Uygulama
+### Uygulama Özel İndirimleri
+Uygulamayı ilk kez indiren kullanıcılara **APP20** kodu ile %20 indirim tanımlanır.
+
+### Teknik Sorun Giderme
+1. Ödeme ekranında donma: Önbelleği temizlemesini isteyin.
+2. Puan görme sorunu: Çıkış-Giriş işlemi yaptırın.
+3. Sipariş takip: Uygulama içindeki "Hesabım > Siparişlerim" sekmesinden anlık kargo takibi yapılabilir.`
+  }
+];
 
 const CAT_COLORS = {
   prosedurler: "bg-blue-50 text-blue-700 border-blue-200",
@@ -118,6 +280,7 @@ const CAT_COLORS = {
   giyim:       "bg-pink-50 text-pink-700 border-pink-200",
   aksesuar:    "bg-teal-50 text-teal-700 border-teal-200",
   markalar:    "bg-amber-50 text-amber-700 border-amber-200",
+  sporthink:   "bg-orange-50 text-orange-700 border-orange-200",
   kargo:       "bg-orange-50 text-orange-700 border-orange-200",
   urunler:     "bg-slate-100 text-slate-700 border-slate-300",
   acil:        "bg-red-50 text-red-700 border-red-200",
@@ -640,8 +803,18 @@ export default function KnowledgeBase() {
 
   useEffect(() => {
     agentApi.getKbArticles()
-      .then((res) => setArticles(res.data || []))
-      .catch(() => setArticles([]));
+      .then((res) => {
+        const remote = res.data || [];
+        // Mock verileri ekle, eğer zaten gelmiyorlarsa
+        const combined = [...remote];
+        SPORTHINK_MOCK_ARTICLES.forEach(mock => {
+          if (!combined.find(a => a.id === mock.id)) {
+            combined.push(mock);
+          }
+        });
+        setArticles(combined);
+      })
+      .catch(() => setArticles(SPORTHINK_MOCK_ARTICLES));
   }, []);
 
   // Ctrl+K shortcut

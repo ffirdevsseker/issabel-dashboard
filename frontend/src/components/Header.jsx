@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, MessageCircle, Radio, Users } from "lucide-react";
+import { Bell, MessageCircle, PhoneIncoming, Radio, Users } from "lucide-react";
 import { useQueueStatus } from "@/context/QueueStatusContext";
+import { useCall } from "@/context/CallContext";
 
 const statusItems = [
   {
@@ -20,6 +21,7 @@ const statusItems = [
 
 export default function Header() {
   const { queue, connectionState } = useQueueStatus();
+  const { simulateIncomingCall, incomingAlert } = useCall();
   const location = useLocation();
   const navigate = useNavigate();
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -125,6 +127,25 @@ export default function Header() {
             <span>{label}</span>
           </button>
         ))}
+
+        {/* ── Test Çağrısı (geliştirici / demo aracı) ── */}
+        <button
+          type="button"
+          disabled={!!incomingAlert}
+          onClick={simulateIncomingCall}
+          title={incomingAlert ? "Zaten çağrı var" : "Test gelen çağrı simüle et"}
+          className={`group inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200
+            ${incomingAlert
+              ? "bg-slate-500/10 text-slate-400 cursor-not-allowed"
+              : "bg-sky-400/10 text-sky-200 hover:bg-sky-400/20 hover:text-sky-100 active:scale-95"
+            }`}
+        >
+          <PhoneIncoming className="h-3.5 w-3.5" />
+          <span>Test Çağrısı</span>
+          {incomingAlert && (
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+          )}
+        </button>
 
         <button
           type="button"

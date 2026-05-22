@@ -7,6 +7,7 @@ from app.api import api_router
 from app.db.health import check_db_connection
 from app.db.session import engine, Base
 from app.db.init_db import seed_db
+from app.ami.listener import start_ami_listener, stop_ami_listener
 import app.models  # noqa: F401
 
 app = FastAPI(
@@ -32,6 +33,19 @@ async def on_startup():
 @app.on_event("startup")
 async def on_startup_db_check():
     await check_db_connection(raise_on_fail=False)
+
+
+@app.on_event("startup")
+async def on_startup_ami():
+    """Asterisk AMI bağlantısını başlat (hata uygulamayı durdurmaz)."""
+    await start_ami_listener()
+
+
+@app.on_event("shutdown")
+async def on_shutdown_ami():
+    """Uygulama kapatılırken AMI bağlantısını temiz kapat."""
+    await stop_ami_listener()
+
 
 app.add_middleware(
     CORSMiddleware,

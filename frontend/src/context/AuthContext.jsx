@@ -15,16 +15,25 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
-      // Token değiştiğinde loading=true yaparak ProtectedRoute'un erken
-      // /login'e yönlendirmesini engelle
-      setLoading(true);
+      // Token varsa önce önbellekteki kullanıcıyı göster (spinner'ı gizle),
+      // arkaplanda /auth/me ile doğrula — sekmeden dönünce 10sn spinner görmezsin
+      const cached = localStorage.getItem("user_cache");
+      if (cached) {
+        try { setUser(JSON.parse(cached)); } catch { /* ignore */ }
+        setLoading(false);  // spinner'ı hemen kaldır
+      } else {
+        setLoading(true);   // ilk girişte spinner göster
+      }
       try {
-        const res = await api.get("/auth/me");
+        const res = await api.get("/auth/me", { timeout: 5000 });
         setUser(res.data);
+        localStorage.setItem("user_cache", JSON.stringify(res.data));
       } catch {
-        // Token geçersizse temizle
+        // Token geçersizse / ağ hatası: önbelleği ve token'ı temizle
         localStorage.removeItem("token");
+        localStorage.removeItem("user_cache");
         setToken(null);
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -46,6 +55,7 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("user_cache");
     setToken(null);
     setUser(null);
   };

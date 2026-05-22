@@ -1,7 +1,10 @@
 import uuid
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import UUID as PGUUID, ENUM as PG_ENUM
 from sqlalchemy.sql import func
+
+_durum_personel = PG_ENUM("aktif", "mola", "mesgul", "offline",
+                           name="durum_personel", create_type=False)
 
 from app.db.session import Base
 
@@ -22,7 +25,7 @@ class User(Base):
     xp             = Column(Integer, default=0)
     seviye         = Column(Integer, default=1)
     unvan          = Column(String(64), default="Bronz")
-    anlik_durum    = Column(String(32), default="offline")
+    anlik_durum    = Column(_durum_personel, default="offline")
     sip_durumu     = Column(String(32), nullable=True)
     son_sip_guncelleme = Column(DateTime, nullable=True)
     sip_cihaz_bilgisi = Column(String(200), nullable=True)

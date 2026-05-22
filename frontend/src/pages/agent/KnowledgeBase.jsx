@@ -837,11 +837,11 @@ export default function KnowledgeBase() {
       list = list.filter((a) => a.categoryId === selectedCat || a.categoryId.startsWith(selectedCat));
     }
     if (debouncedQuery.trim()) {
-      const q = debouncedQuery.toLowerCase();
+      const q = debouncedQuery.toLocaleLowerCase('tr-TR');
       list = list.filter((a) =>
-        a.title.toLowerCase().includes(q) ||
-        a.preview.toLowerCase().includes(q) ||
-        a.tags.some((t) => t.includes(q))
+        a.title.toLocaleLowerCase('tr-TR').includes(q) ||
+        a.preview.toLocaleLowerCase('tr-TR').includes(q) ||
+        a.tags.some((t) => t.toLocaleLowerCase('tr-TR').includes(q))
       );
     }
     return list;

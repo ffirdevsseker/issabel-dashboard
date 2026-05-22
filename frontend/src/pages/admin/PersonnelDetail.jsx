@@ -60,7 +60,7 @@ function Avatar({ name, color, size = 56 }) {
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: size * 0.36, fontWeight: 800, color,
     }}>
-      {name?.charAt(0).toUpperCase() || "?"}
+      {name?.charAt(0).toLocaleUpperCase('tr-TR') || "?"}
     </div>
   );
 }
@@ -783,7 +783,7 @@ export default function PersonnelDetail() {
                   border: `1px solid ${unvanS.color}25`,
                   borderRadius: 5, padding: "2px 7px",
                 }}>
-                  {profil.unvan?.toUpperCase()}
+                  {profil.unvan?.toLocaleUpperCase('tr-TR')}
                 </span>
               )}
               {overrun && (

@@ -68,7 +68,7 @@ function AgentRow({ agent, isAdmin, onEndBreak }) {
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 12, fontWeight: 800, color: d.color,
         }}>
-          {agent.ad_soyad?.charAt(0).toUpperCase() || "?"}
+          {agent.ad_soyad?.charAt(0).toLocaleUpperCase('tr-TR') || "?"}
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{
@@ -153,7 +153,7 @@ function AgentRow({ agent, isAdmin, onEndBreak }) {
             color: unvanStyle.color, background: unvanStyle.bg,
             borderRadius: 5, padding: "2px 6px",
           }}>
-            {agent.unvan.toUpperCase()}
+            {agent.unvan.toLocaleUpperCase('tr-TR')}
           </span>
         )}
         {alarm && isAdmin && (
@@ -248,11 +248,11 @@ export default function AgentGrid({ agents, isAdmin, onEndBreak }) {
   };
 
   const filtered = list.filter((a) => {
-    const q = search.toLowerCase();
+    const q = search.toLocaleLowerCase('tr-TR');
     const match = !q
-      || a.ad_soyad?.toLowerCase().includes(q)
-      || a.departman_adi?.toLowerCase().includes(q)
-      || a.ekip_adi?.toLowerCase().includes(q)
+      || a.ad_soyad?.toLocaleLowerCase('tr-TR').includes(q)
+      || a.departman_adi?.toLocaleLowerCase('tr-TR').includes(q)
+      || a.ekip_adi?.toLocaleLowerCase('tr-TR').includes(q)
       || a.dahili_no?.includes(q);
     return match && (durumFilter === "tumu" || a.anlik_durum === durumFilter);
   });

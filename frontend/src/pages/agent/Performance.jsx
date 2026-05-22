@@ -496,7 +496,7 @@ function BadgeModal({ badge, onClose }) {
           </div>
           <div className="text-center">
             <h3 className="text-[18px] font-extrabold text-slate-800">{badge.name}</h3>
-            <span className={`inline-block mt-2 text-[10px] font-bold px-3 py-1 rounded-full border ${r.bg} ${r.color} ${r.border}`}>{r.label.toUpperCase()}</span>
+            <span className={`inline-block mt-2 text-[10px] font-bold px-3 py-1 rounded-full border ${r.bg} ${r.color} ${r.border}`}>{r.label.toLocaleUpperCase('tr-TR')}</span>
           </div>
           <p className="text-[13px] text-slate-500 text-center leading-relaxed px-2">{badge.description}</p>
 
@@ -641,7 +641,7 @@ function GoalBar({ goal }) {
     <div className="rounded-xl border border-slate-200/60 bg-white px-3.5 py-3 transition-all duration-300 hover:shadow-sm hover:border-slate-300">
       <div className="flex items-start justify-between gap-2 mb-2">
         <span className="text-[12px] font-extrabold text-slate-800">{goal.name}</span>
-        <span className={`shrink-0 text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${status.cls}`}>{status.label.toUpperCase()}</span>
+        <span className={`shrink-0 text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${status.cls}`}>{status.label.toLocaleUpperCase('tr-TR')}</span>
       </div>
       <div className="h-2 rounded-full bg-slate-100 overflow-hidden mb-1.5 shadow-inner">
         <div className="h-full rounded-full transition-all duration-1000"
@@ -816,7 +816,7 @@ function LeaderboardTable({ entries }) {
 
               {/* Level */}
               <span className="text-right text-[11px] flex items-center justify-end gap-1">
-                <MedalSVG tier={typeof entry.levelName === "string" ? entry.levelName.split(" ")[0].toLowerCase().replace("ü","u").replace("ı","i") : "bronz"} size={16} />
+                <MedalSVG tier={(() => { const w = typeof entry.levelName === "string" ? entry.levelName.split(" ")[0].toLocaleLowerCase('tr-TR') : "bronz"; return { "gümüş": "gumus", "altın": "altin", "platin": "platin", "bronz": "bronz" }[w] || "bronz"; })()} size={16} />
                 <span className="text-slate-600 font-bold">{entry.level}</span>
               </span>
 

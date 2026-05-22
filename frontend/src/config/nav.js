@@ -102,7 +102,7 @@ export const ADMIN_BOTTOM_NAV_ITEMS = [];
 
 /* ─── Yardımcılar ─── */
 function normalizeRole(role) {
-  const clean = String(role || "").trim().toLowerCase();
+  const clean = String(role || "").trim().toLocaleLowerCase('tr-TR');
   const aliasMap = {
     staff:     "personel",
     agent:     "personel",

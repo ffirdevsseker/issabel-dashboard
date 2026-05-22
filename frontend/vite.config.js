@@ -2,8 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-const BACKEND = 'http://localhost:8000'
-const WS_BACKEND = 'ws://localhost:8000'
+const BACKEND = 'http://localhost:5000'
+const WS_BACKEND = 'ws://localhost:5000'
 
 const httpProxy = (target = BACKEND) => ({ target, changeOrigin: true })
 const wsProxy   = (target = WS_BACKEND) => ({ target, ws: true, changeOrigin: true })
@@ -36,6 +36,7 @@ export default defineConfig({
       '/dashboard':    httpProxy(),
       '/admin':        spaAwareProxy(),
       '/supervisor':   spaAwareProxy(),
+      '/staff':        httpProxy(),
       '/ws':           wsProxy(),
     },
   },

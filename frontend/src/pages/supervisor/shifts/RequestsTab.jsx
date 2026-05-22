@@ -17,7 +17,7 @@ const TYPE_LABELS = {
 };
 
 function getInitials(name = "") {
-  return name.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
+  return name.split(" ").map(p => p[0]).slice(0, 2).join("").toLocaleUpperCase('tr-TR');
 }
 
 function Toast({ msg, onClose }) {

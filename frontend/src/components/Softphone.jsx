@@ -30,8 +30,8 @@ function formatDuration(startedAt) {
 function getInitials(name = "") {
   const tokens = String(name).trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return "?";
-  if (tokens.length === 1) return tokens[0].slice(0, 2).toUpperCase();
-  return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+  if (tokens.length === 1) return tokens[0].slice(0, 2).toLocaleUpperCase('tr-TR');
+  return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toLocaleUpperCase('tr-TR');
 }
 
 /* ─── Dial pad anahtarları ─── */
@@ -75,7 +75,7 @@ export default function Softphone() {
   } = useCall();
   const { user } = useAuth();
 
-  const role = String(user?.role || "personel").toLowerCase();
+  const role = String(user?.role || "personel").toLocaleLowerCase('tr-TR');
   const roleStyle = ROLE_HEADER[role] || ROLE_HEADER.personel;
 
   // Admin/Süpervizör için varsayılan açılış sekmesi Rehber, Personel için Tuş Takımı
@@ -468,14 +468,14 @@ function DirectoryTab({ onCall }) {
   // Filtreleme: isim VEYA dahili numara
   const filtered = useMemo(() => {
     if (!data) return null;
-    const q = query.trim().toLowerCase();
+    const q = query.trim().toLocaleLowerCase('tr-TR');
     const groups = ["admin", "supervisor", "personel", "bt"];
     const out = {};
     for (const g of groups) {
       const list = Array.isArray(data[g]) ? data[g] : [];
       out[g] = q
         ? list.filter((u) =>
-            (u.name || "").toLowerCase().includes(q) ||
+            (u.name || "").toLocaleLowerCase('tr-TR').includes(q) ||
             String(u.extension || "").includes(q)
           )
         : list;

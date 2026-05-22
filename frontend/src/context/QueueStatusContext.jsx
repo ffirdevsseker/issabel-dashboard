@@ -37,7 +37,7 @@ export function QueueStatusProvider({ children }) {
     const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
     const host = import.meta.env.VITE_API_URL
       ? new URL(import.meta.env.VITE_API_URL).host
-      : `${window.location.hostname}:8000`;
+      : `${window.location.hostname}:5000`;
     const wsUrl = `${wsProtocol}://${host}/ws/queue?token=${encodeURIComponent(token)}`;
 
     let isUnmounted = false;

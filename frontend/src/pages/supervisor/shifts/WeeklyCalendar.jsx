@@ -10,7 +10,7 @@ const PERSON_COL_W = 200;
 const TR_DAYS = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 
 function getInitials(name) {
-  return name.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
+  return name.split(" ").map(p => p[0]).slice(0, 2).join("").toLocaleUpperCase('tr-TR');
 }
 
 function CapacityBadge({ current, total }) {

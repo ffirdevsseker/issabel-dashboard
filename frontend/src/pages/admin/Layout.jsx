@@ -133,7 +133,7 @@ export default function AdminLayout() {
     .map((p) => p[0])
     .slice(0, 2)
     .join("")
-    .toUpperCase();
+    .toLocaleUpperCase('tr-TR');
 
   // ── Canlı veri çekimi (30 sn interval) ──────────────────────────────────────
   const fetchLive = useCallback(async () => {

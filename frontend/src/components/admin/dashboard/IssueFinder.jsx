@@ -163,7 +163,7 @@ export default function IssueFinder({ issues, loading }) {
                     border: `1px solid ${sv.color}22`,
                     color: sv.color, borderRadius: 999, padding: "1px 6px",
                   }}>
-                    {sv.label.toUpperCase()}
+                    {sv.label.toLocaleUpperCase('tr-TR')}
                   </span>
                 </div>
                 <div style={{

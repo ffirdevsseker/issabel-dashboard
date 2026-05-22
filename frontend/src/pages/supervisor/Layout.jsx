@@ -70,7 +70,7 @@ export default function SupervisorLayout() {
   }, [toggleSoftphone]);
 
   const displayName = user?.full_name || user?.username || "Süpervizör";
-  const initials = displayName.split(" ").map(p => p[0]).slice(0, 2).join("").toUpperCase();
+  const initials = displayName.split(" ").map(p => p[0]).slice(0, 2).join("").toLocaleUpperCase('tr-TR');
   const totalPending = pending.breaks + pending.complaints + pending.kb;
   const hasUnreadDirectives = pending.adminDirectives > 0;
   const overviewItem = SUP_NAV[0];

@@ -50,8 +50,8 @@ function avatarColor(str) {
 function getInitials(name) {
   const tokens = (name || "").trim().split(/\s+/);
   if (!tokens[0]) return "?";
-  if (tokens.length === 1) return tokens[0].slice(0, 2).toUpperCase();
-  return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toUpperCase();
+  if (tokens.length === 1) return tokens[0].slice(0, 2).toLocaleUpperCase('tr-TR');
+  return `${tokens[0][0]}${tokens[tokens.length - 1][0]}`.toLocaleUpperCase('tr-TR');
 }
 
 function generateWaveformBars(seed, count = 70) {
@@ -670,9 +670,9 @@ function AudioPlayer({ call }) {
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {(call.transcript || []).length === 0 ? (
                 <div className="text-[11px] text-slate-400 text-center py-4">Transkript mevcut değil</div>
-              ) : (call.transcript || []).filter(l => !transcriptSearch || l.text.toLowerCase().includes(transcriptSearch.toLowerCase())).map((line, i) => {
+              ) : (call.transcript || []).filter(l => !transcriptSearch || l.text.toLocaleLowerCase('tr-TR').includes(transcriptSearch.toLocaleLowerCase('tr-TR'))).map((line, i) => {
                 const isPersonnel = line.speaker === "Personel";
-                const highlight = transcriptSearch && line.text.toLowerCase().includes(transcriptSearch.toLowerCase());
+                const highlight = transcriptSearch && line.text.toLocaleLowerCase('tr-TR').includes(transcriptSearch.toLocaleLowerCase('tr-TR'));
                 return (
                   <div key={i} className={`rounded-xl px-3 py-2 ${highlight ? "bg-yellow-50 border border-yellow-200" : isPersonnel ? "bg-[#1DB954]/5 border border-[#1DB954]/10" : "bg-slate-50 border border-slate-100"}`}>
                     <div className="flex items-center gap-2 mb-0.5">
@@ -1116,16 +1116,16 @@ export default function CallRecords() {
     if (statFilter === "missed") data = data.filter(c => c.direction === "cevapsiz");
     if (statFilter === "answered") data = data.filter(c => c.result === "basarili");
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      data = data.filter(c => c.customer.name.toLowerCase().includes(q) || c.customer.phone.includes(q));
+      const q = searchQuery.trim().toLocaleLowerCase('tr-TR');
+      data = data.filter(c => c.customer.name.toLocaleLowerCase('tr-TR').includes(q) || c.customer.phone.includes(q));
     }
     data.sort((a, b) => {
       let va, vb;
       if (sortColumn === "startedAt") { va = new Date(a.startedAt).getTime(); vb = new Date(b.startedAt).getTime(); }
       else if (sortColumn === "duration") { va = a.duration; vb = b.duration; }
       else if (sortColumn === "waitTime") { va = a.waitTime; vb = b.waitTime; }
-      else if (sortColumn === "customer") { va = a.customer.name.toLowerCase(); vb = b.customer.name.toLowerCase(); }
-      else if (sortColumn === "department") { va = a.department.toLowerCase(); vb = b.department.toLowerCase(); }
+      else if (sortColumn === "customer") { va = a.customer.name.toLocaleLowerCase('tr-TR'); vb = b.customer.name.toLocaleLowerCase('tr-TR'); }
+      else if (sortColumn === "department") { va = a.department.toLocaleLowerCase('tr-TR'); vb = b.department.toLocaleLowerCase('tr-TR'); }
       else { va = a[sortColumn]; vb = b[sortColumn]; }
       if (typeof va === "string") return sortDirection === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
       return sortDirection === "asc" ? va - vb : vb - va;

@@ -331,13 +331,13 @@ export default function ActiveCalls() {
   noteRef.current = noteText;
 
   const filteredTransferTargets = useMemo(() => {
-    const q = transferQuery.trim().toLowerCase();
+    const q = transferQuery.trim().toLocaleLowerCase('tr-TR');
     if (!q) return mockTransferAgents;
     return mockTransferAgents.filter((item) => {
       return (
-        item.name.toLowerCase().includes(q) ||
+        item.name.toLocaleLowerCase('tr-TR').includes(q) ||
         (item.extension || "").includes(q) ||
-        (item.department || "").toLowerCase().includes(q)
+        (item.department || "").toLocaleLowerCase('tr-TR').includes(q)
       );
     });
   }, [transferQuery]);
@@ -446,7 +446,7 @@ export default function ActiveCalls() {
     setLastCallSummary({
       name: activeCall?.callerName || "Bilinmeyen",
       duration,
-      category: noteCategory ? noteCategory.toUpperCase() : "Bilgi",
+      category: noteCategory ? noteCategory.toLocaleUpperCase('tr-TR') : "Bilgi",
       result: approved ? "Basarili" : "Atlandi",
       note: finalSummaryText || "Manuel not girilmedi.",
     });
@@ -709,7 +709,7 @@ export default function ActiveCalls() {
 
   useEffect(() => {
     if (pageState !== "active" || !aiData?.isAvailable) return;
-    const haystack = `${noteText} ${kbQuery}`.toLowerCase();
+    const haystack = `${noteText} ${kbQuery}`.toLocaleLowerCase('tr-TR');
 
     triggerWords.forEach((word) => {
       if (!haystack.includes(word)) return;
@@ -741,12 +741,12 @@ export default function ActiveCalls() {
         return;
       }
 
-      const q = kbQuery.toLowerCase();
+      const q = kbQuery.toLocaleLowerCase('tr-TR');
       const filtered = mockKBArticles.filter((article) => {
         return (
-          article.title.toLowerCase().includes(q) ||
-          article.preview.toLowerCase().includes(q) ||
-          article.tags.some((tag) => tag.includes(q))
+          article.title.toLocaleLowerCase('tr-TR').includes(q) ||
+          article.preview.toLocaleLowerCase('tr-TR').includes(q) ||
+          article.tags.some((tag) => tag.toLocaleLowerCase('tr-TR').includes(q))
         );
       });
       setKBResults(filtered);
@@ -1753,7 +1753,7 @@ function CustomerCard({
     .map((part) => part[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase();
+    .toLocaleUpperCase('tr-TR');
 
   const selectedHistory = customer.previousCalls.find((item) => item.id === selectedHistoryCall) || null;
 

@@ -14,38 +14,54 @@ const POLL_MS = 30_000;
 
 /* ─── DEMO veriler (backend boş döndüğünde gösterilir) ─── */
 const MOCK_HOURLY = [
-  { saat: "08:00", gelen: 12, cevaplanan: 11, kacirilan: 1 },
-  { saat: "09:00", gelen: 28, cevaplanan: 24, kacirilan: 4 },
-  { saat: "10:00", gelen: 45, cevaplanan: 41, kacirilan: 4 },
-  { saat: "11:00", gelen: 52, cevaplanan: 47, kacirilan: 5 },
-  { saat: "12:00", gelen: 38, cevaplanan: 33, kacirilan: 5 },
-  { saat: "13:00", gelen: 35, cevaplanan: 31, kacirilan: 4 },
-  { saat: "14:00", gelen: 48, cevaplanan: 43, kacirilan: 5 },
-  { saat: "15:00", gelen: 55, cevaplanan: 50, kacirilan: 5 },
-  { saat: "16:00", gelen: 42, cevaplanan: 39, kacirilan: 3 },
-  { saat: "17:00", gelen: 30, cevaplanan: 27, kacirilan: 3 },
+  { saat: "08:00", toplam: 12, cevaplanan: 11, kacan: 1,  mesai_disi: false },
+  { saat: "09:00", toplam: 28, cevaplanan: 24, kacan: 4,  mesai_disi: false },
+  { saat: "10:00", toplam: 45, cevaplanan: 41, kacan: 4,  mesai_disi: false },
+  { saat: "11:00", toplam: 52, cevaplanan: 47, kacan: 5,  mesai_disi: false },
+  { saat: "12:00", toplam: 38, cevaplanan: 33, kacan: 5,  mesai_disi: false },
+  { saat: "13:00", toplam: 35, cevaplanan: 31, kacan: 4,  mesai_disi: false },
+  { saat: "14:00", toplam: 48, cevaplanan: 43, kacan: 5,  mesai_disi: false },
+  { saat: "15:00", toplam: 55, cevaplanan: 50, kacan: 5,  mesai_disi: false },
+  { saat: "16:00", toplam: 42, cevaplanan: 39, kacan: 3,  mesai_disi: false },
+  { saat: "17:00", toplam: 30, cevaplanan: 27, kacan: 3,  mesai_disi: false },
 ];
 
+const MOCK_COMMAND = {
+  gunluk_cagri: { bugun: 393, dun: 371, cevaplanan: 358, kacan: 35, degisim_pct: 5.9, trend: "up" },
+  sla:          { yuzde: 87.3, esik_sn: 45, karsilayan: 312, toplam: 358, hedef_yuzde: 80, alarm: false },
+  kacan:        { sayi: 35, tahmini_ciro: 1750, ciro_per_cagri: 50, alarm: false },
+  kuyruk:       { bekleyen: 4, ort_bekleme_sn: 28, max_bekleme_sn: 67, alarm: false },
+  trunk:        { aktif_kanal: 14, trunk_limiti: 30, yuzde: 46.7, alarm_aktif: false, cpu: 38.2, ram: 51.4 },
+  uyarilar:     [],
+};
+
 const MOCK_AGENTS = [
-  { id: "a-1", ad_soyad: "Ahmet Yılmaz",   dahili_no: "1101", durum: "musait",  cagri_sayisi: 23, ortalama_sure: 145, xp: 1850 },
-  { id: "a-2", ad_soyad: "Selin Öztürk",   dahili_no: "1102", durum: "mesgul",  cagri_sayisi: 19, ortalama_sure: 178, xp: 1620 },
-  { id: "a-3", ad_soyad: "Can Demir",      dahili_no: "1103", durum: "mola",    cagri_sayisi: 15, ortalama_sure: 152, xp: 1450 },
-  { id: "a-4", ad_soyad: "Zeynep Arslan",  dahili_no: "1104", durum: "musait",  cagri_sayisi: 27, ortalama_sure: 132, xp: 2100 },
-  { id: "a-5", ad_soyad: "Mert Güven",     dahili_no: "1105", durum: "mesgul",  cagri_sayisi: 21, ortalama_sure: 168, xp: 1780 },
-  { id: "a-6", ad_soyad: "Ayşe Koç",       dahili_no: "1106", durum: "musait",  cagri_sayisi: 18, ortalama_sure: 142, xp: 1540 },
-  { id: "a-7", ad_soyad: "Burak Yıldız",   dahili_no: "1107", durum: "offline", cagri_sayisi: 0,  ortalama_sure: 0,   xp: 980  },
-  { id: "a-8", ad_soyad: "Deniz Kaya",     dahili_no: "1108", durum: "mola",    cagri_sayisi: 12, ortalama_sure: 165, xp: 1320 },
+  { id: "a-1", ad_soyad: "Ahmet Yılmaz",  dahili_no: "1101", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi A", anlik_durum: "aktif",   sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 23, bugun_cevaplanan: 22, bugun_ort_csat: 4.7, unvan: "Altın",  xp: 1850, seviye: 8  },
+  { id: "a-2", ad_soyad: "Selin Öztürk",  dahili_no: "1102", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi A", anlik_durum: "mesgul",  sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 19, bugun_cevaplanan: 18, bugun_ort_csat: 4.5, unvan: "Gümüş", xp: 1620, seviye: 7  },
+  { id: "a-3", ad_soyad: "Can Demir",     dahili_no: "1103", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Satış Ekibi",     anlik_durum: "mola",    sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 15, bugun_cevaplanan: 14, bugun_ort_csat: 4.2, unvan: "Gümüş", xp: 1450, seviye: 6  },
+  { id: "a-4", ad_soyad: "Zeynep Arslan", dahili_no: "1104", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi B", anlik_durum: "aktif",   sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 27, bugun_cevaplanan: 27, bugun_ort_csat: 4.9, unvan: "Platin", xp: 2100, seviye: 10 },
+  { id: "a-5", ad_soyad: "Mert Güven",    dahili_no: "1105", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi B", anlik_durum: "mesgul",  sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 21, bugun_cevaplanan: 20, bugun_ort_csat: 4.6, unvan: "Altın",  xp: 1780, seviye: 8  },
+  { id: "a-6", ad_soyad: "Ayşe Koç",      dahili_no: "1106", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi A", anlik_durum: "aktif",   sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 18, bugun_cevaplanan: 17, bugun_ort_csat: 4.4, unvan: "Gümüş", xp: 1540, seviye: 6  },
+  { id: "a-7", ad_soyad: "Burak Yıldız",  dahili_no: "1107", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Satış Ekibi",     anlik_durum: "offline",  sip_durumu: "koptu",  mola_asimi: false, bugun_toplam_cagri: 0,  bugun_cevaplanan: 0,  bugun_ort_csat: 0,   unvan: "Bronz", xp: 980,  seviye: 3  },
+  { id: "a-8", ad_soyad: "Deniz Kaya",    dahili_no: "1108", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi B", anlik_durum: "mola",    sip_durumu: "normal", mola_asimi: true,  bugun_toplam_cagri: 12, bugun_cevaplanan: 11, bugun_ort_csat: 3.8, unvan: "Bronz", xp: 1320, seviye: 5  },
+  { id: "a-9", ad_soyad: "Emre Yıldırım", dahili_no: "1109", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi A", anlik_durum: "mesgul",  sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 16, bugun_cevaplanan: 16, bugun_ort_csat: 4.8, unvan: "Altın",  xp: 1690, seviye: 7  },
+  { id: "a-10", ad_soyad: "Fatma Şahin",  dahili_no: "1110", departman_adi: "Müşteri Hizmetleri", ekip_adi: "Çağrı Merkezi B", anlik_durum: "aktif",   sip_durumu: "normal", mola_asimi: false, bugun_toplam_cagri: 20, bugun_cevaplanan: 19, bugun_ort_csat: 4.3, unvan: "Gümüş", xp: 1600, seviye: 7  },
 ];
 
 const _now = Date.now();
-const _iso = (m) => new Date(_now - m * 60_000).toISOString();
+const _fmtKisa = (m) => {
+  const d = new Date(_now - m * 60_000);
+  return `${String(d.getDate()).padStart(2,"0")}.${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+};
 const MOCK_MISSED = [
-  { id: "m-1", musteri_telefon: "+90 532 411 22 18", kategori: "Satış",   personel: "Ahmet Yılmaz",   dahili: "1101", baslangic: _iso(8),  bekleme_suresi: 42 },
-  { id: "m-2", musteri_telefon: "+90 545 233 88 44", kategori: "Destek",  personel: "Selin Öztürk",   dahili: "1102", baslangic: _iso(15), bekleme_suresi: 75 },
-  { id: "m-3", musteri_telefon: "+90 505 671 34 12", kategori: "İade",    personel: "—",              dahili: "—",    baslangic: _iso(22), bekleme_suresi: 120 },
-  { id: "m-4", musteri_telefon: "+90 530 988 11 22", kategori: "Şikayet", personel: "Can Demir",      dahili: "1103", baslangic: _iso(34), bekleme_suresi: 65 },
-  { id: "m-5", musteri_telefon: "+90 542 555 66 77", kategori: "Bilgi",   personel: "—",              dahili: "—",    baslangic: _iso(46), bekleme_suresi: 90 },
-  { id: "m-6", musteri_telefon: "+90 537 666 77 88", kategori: "Satış",   personel: "Zeynep Arslan",  dahili: "1104", baslangic: _iso(58), bekleme_suresi: 38 },
+  { id: "m-1", arayan_numara: "+905***218", tarih_kisa: _fmtKisa(8),  durum: "cevaplanmadi", mesai_disi: false, bekleme_sn: 42,  kuyruk_adi: "Genel Hat"    },
+  { id: "m-2", arayan_numara: "+905***844", tarih_kisa: _fmtKisa(15), durum: "cevaplanmadi", mesai_disi: false, bekleme_sn: 75,  kuyruk_adi: "Teknik Destek" },
+  { id: "m-3", arayan_numara: "+905***412", tarih_kisa: _fmtKisa(22), durum: "cevaplanmadi", mesai_disi: false, bekleme_sn: 120, kuyruk_adi: "İade"          },
+  { id: "m-4", arayan_numara: "+905***122", tarih_kisa: _fmtKisa(34), durum: "mesgul",       mesai_disi: false, bekleme_sn: 65,  kuyruk_adi: "VIP"           },
+  { id: "m-5", arayan_numara: "+905***677", tarih_kisa: _fmtKisa(46), durum: "cevaplanmadi", mesai_disi: true,  bekleme_sn: 90,  kuyruk_adi: "Genel Hat"    },
+  { id: "m-6", arayan_numara: "+905***788", tarih_kisa: _fmtKisa(58), durum: "cevaplanmadi", mesai_disi: true,  bekleme_sn: 38,  kuyruk_adi: "Satış"         },
+  { id: "m-7", arayan_numara: "+905***991", tarih_kisa: _fmtKisa(72), durum: "mesgul",       mesai_disi: false, bekleme_sn: 55,  kuyruk_adi: "Teknik Destek" },
+  { id: "m-8", arayan_numara: "+905***303", tarih_kisa: _fmtKisa(95), durum: "cevaplanmadi", mesai_disi: true,  bekleme_sn: 148, kuyruk_adi: "Genel Hat"    },
 ];
 
 /* ─── Beyaz kart paneli ─────────────────────────────────────────────────────── */
@@ -198,7 +214,9 @@ export default function AdminOverview() {
       overviewApi.getMissedCalls(25),
     ]);
 
-    if (cmdRes.status    === "fulfilled") setCommand(cmdRes.value.data);
+    const cmdData = cmdRes.status === "fulfilled" ? cmdRes.value.data : null;
+    const cmdEmpty = !cmdData || (cmdData.gunluk_cagri?.bugun === 0 && cmdData.sla?.toplam === 0);
+    setCommand(cmdEmpty ? MOCK_COMMAND : cmdData);
 
     const hourlyData = hourRes.status === "fulfilled" ? (hourRes.value.data || []) : [];
     setHourly(hourlyData.length > 0 ? hourlyData : MOCK_HOURLY);

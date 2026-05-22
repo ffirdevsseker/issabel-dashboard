@@ -54,7 +54,7 @@ const S = {
 /* ══════════════════════════════ Atom Bileşenler ═════════════════════════════ */
 
 function Avatar({ name, color, size = 34 }) {
-  const initial = (name || "?").charAt(0).toUpperCase();
+  const initial = (name || "?").charAt(0).toLocaleUpperCase('tr-TR');
   return (
     <div
       style={{
@@ -1110,7 +1110,7 @@ function MatrisTab({ isAdmin }) {
                           background: "#f5f3ff", border: "1px solid rgba(139,92,246,0.3)",
                           borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap",
                         }}>
-                          {p.unvan.toUpperCase()}
+                          {p.unvan.toLocaleUpperCase('tr-TR')}
                         </span>
                       )}
                       {overrunRow && (

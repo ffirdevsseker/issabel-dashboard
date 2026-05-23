@@ -98,9 +98,15 @@ def decide_complaint(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Yetkiniz yok")
 
     sikayet.durum = "onaylandi" if karar == "onayla" else "reddedildi"
-    sikayet.supervisor_id = user.id
-    sikayet.supervisor_notu = gerekce
-    sikayet.supervisor_tarih = datetime.utcnow()
+    now = datetime.utcnow()
+    if user.role_name == "admin":
+        sikayet.admin_id    = user.id
+        sikayet.admin_notu  = gerekce
+        sikayet.admin_tarih = now
+    else:
+        sikayet.supervisor_id    = user.id
+        sikayet.supervisor_notu  = gerekce
+        sikayet.supervisor_tarih = now
     db.commit()
     return {"success": True}
 

@@ -14,10 +14,10 @@ Tasarım kararı:
 """
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -131,8 +131,8 @@ async def agent_priorities(
         priorities.append({
             "id":          "long_duration",
             "priority":    "medium",
-            "title":       f"Görüşme ortalamanız {int(avg_sec // 60)}d {int(avg_sec % 60)}s",
-            "description": f"5 dakika hedefini {over // 60}d {over % 60}s aşıyor",
+            "title":       f"Görüşme ortalamanız {int(avg_sec // 60)}dk {int(avg_sec % 60)}sn",
+            "description": f"5 dakika hedefini {over // 60}dk {over % 60}sn aşıyor",
             "status":      "pending",
         })
 
@@ -167,13 +167,15 @@ async def agent_priorities(
 async def agent_callbacks(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
+    limit: int = Query(15, ge=1, le=50),
 ):
-    """Bugünkü cevapsız/meşgul + takip durumu.
+    """Bugünkü cevapsız/meşgul + takip durumu (varsayılan: en fazla 15 kayıt).
     callback_takip tablosu yoksa veya CDR sorgusu çökerse boş liste döner.
     """
-    # 1) CDR cevapsız listesi
+    # 1) CDR cevapsız listesi (bugün filtreli, limit ile kısıtlı)
     try:
         rows = await cdr_service.get_today_missed_calls(db, user_id=None)
+        rows = rows[:limit]
     except Exception as exc:
         logger.warning("agent_callbacks CDR sorgusu başarısız: %s", exc)
         return []
@@ -242,7 +244,7 @@ async def track_callback(
 
         if takip:
             takip.durum = payload.durum
-            takip.guncelleme_zamani = datetime.utcnow()
+            takip.guncelleme_zamani = datetime.now(timezone.utc)
         else:
             takip = CallbackTakip(
                 cdr_id   = cdr_id,
@@ -270,7 +272,7 @@ async def track_callback(
 def _age_label(dt: datetime | None) -> str:
     if dt is None:
         return "–"
-    diff = int((datetime.now() - dt).total_seconds() / 60)
+    diff = int((datetime.now(timezone.utc) - dt).total_seconds() / 60)
     if diff < 1:
         return "şimdi"
     if diff < 60:

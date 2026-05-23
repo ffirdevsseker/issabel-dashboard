@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, cast, String
@@ -14,9 +14,9 @@ def _apply_user_filter(stmt, user_id):
 
 
 def _today_range():
-    """Bugünün başlangıç ve bitiş datetime nesnelerini döner."""
-    today = date.today()
-    start = datetime(today.year, today.month, today.day)
+    """Bugünün UTC gün başı/sonu — TIMESTAMPTZ kolonuyla uyumlu aware datetime."""
+    now   = datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     end   = start + timedelta(days=1)
     return start, end
 

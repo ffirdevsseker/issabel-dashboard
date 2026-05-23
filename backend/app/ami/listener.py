@@ -73,7 +73,11 @@ _active_calls: dict[str, dict] = {}
 # dahili_no → user UUID (None = veritabanında yok)
 _ext_cache: dict[str, Optional[uuid.UUID]] = {}
 
+# dahili_no → son bilinen durum (veritabanına yazılmayı bekleyen)
+_pending_status_updates: dict[str, str] = {}
+
 _manager: Optional[Manager] = None
+_status_writer_task: Optional[asyncio.Task] = None
 
 
 def get_active_calls() -> dict:
@@ -132,24 +136,49 @@ async def _resolve_user_id(extension: str) -> Optional[uuid.UUID]:
         return None
 
 
-async def _update_agent_status(extension: str, durum: str) -> None:
-    """Kullanıcının 'anlik_durum' alanını PostgreSQL'e yaz."""
+def _update_agent_status(extension: str, durum: str) -> None:
+    """
+    Kullanıcının durumunu veritabanına yazmak üzere sıraya alır.
+    Doğrudan veritabanı işlemi yapmaz, sadece in-memory sözlüğü günceller.
+    Bu fonksiyon artık `async` DEĞİLDİR ve `await` edilmez.
+    """
     if not extension:
         return
     # İç durumu DB enum'ına çevir; bilinmeyen değer → 'offline'
     db_durum = _DURUM_PERSONEL.get(durum, "offline")
-    try:
-        async with AsyncSessionLocal() as db:
-            await db.execute(
-                update(User)
-                .where(User.dahili_no == extension)
-                .values(anlik_durum=db_durum)
-            )
-            await db.commit()
-    except Exception as exc:
-        logger.warning(
-            "Durum güncellenemedi (ext=%s, durum=%s): %s", extension, db_durum, exc
-        )
+    _pending_status_updates[extension] = db_durum
+
+
+async def _status_writer_loop() -> None:
+    """
+    Bekleyen durum güncellemelerini periyodik olarak veritabanına yazar.
+    Bu coroutine, uygulama başladığında bir arka plan task'ı olarak çalışır.
+    """
+    while True:
+        await asyncio.sleep(2)  # Her 2 saniyede bir yazmayı dene
+        if not _pending_status_updates:
+            continue
+
+        # O anki bekleyen güncellemelerin bir kopyasını al ve orijinalini temizle
+        updates_to_process = dict(_pending_status_updates)
+        _pending_status_updates.clear()
+
+        try:
+            async with AsyncSessionLocal() as db:
+                # Tek bir oturum içinde tüm güncellemeleri yap
+                for extension, durum in updates_to_process.items():
+                    await db.execute(
+                        update(User)
+                        .where(User.dahili_no == extension)
+                        .values(anlik_durum=durum)
+                    )
+                await db.commit()
+                logger.info("%d adet bekleyen durum güncellemesi yazıldı.", len(updates_to_process))
+        except Exception as exc:
+            logger.error("Durum güncellemeleri toplu yazılamadı: %s", exc)
+            # Başarısız olanları bir sonraki döngüde denemek için geri ekle
+            # (Basit bir strateji, daha gelişmiş bir mekanizma kurulabilir)
+            _pending_status_updates.update(updates_to_process)
 
 
 async def _write_cdr(data: dict) -> None:
@@ -248,10 +277,10 @@ async def on_newchannel(manager, event) -> None:
         "queue":       None,
         "cause_txt":   "",
     }
-    logger.debug("↗ Newchannel  ch=%-28s caller=%-12s exten=%-8s ctx=%s",
+    logger.warning("↗ Newchannel  ch=%-28s caller=%-12s exten=%-8s ctx=%s",
                  channel, caller, exten, context)
     if extension:
-        await _update_agent_status(extension, "aktif")
+        _update_agent_status(extension, "aktif")
 
 
 async def on_hangup(manager, event) -> None:
@@ -266,12 +295,12 @@ async def on_hangup(manager, event) -> None:
     data["end_time"]  = datetime.now(timezone.utc)
     data["cause_txt"] = cause_txt
 
-    logger.debug("↙ Hangup     ch=%-28s cause=%s", channel, cause_txt)
+    logger.warning("↙ Hangup     ch=%-28s cause=%s", channel, cause_txt)
     await _write_cdr(data)
 
     ext = data.get("extension", "")
     if ext:
-        await _update_agent_status(ext, "musait")
+        _update_agent_status(ext, "musait")
 
 
 async def on_bridge(manager, event) -> None:
@@ -285,7 +314,7 @@ async def on_bridge(manager, event) -> None:
             _active_calls[ch]["answer_time"] = now
             ext = _active_calls[ch].get("extension", "")
             if ext:
-                await _update_agent_status(ext, "konusmada")
+                _update_agent_status(ext, "konusmada")
     logger.debug("⇌ Bridge     ch1=%-22s ch2=%s", ch1, ch2)
 
 
@@ -309,7 +338,7 @@ async def on_agent_called(manager, event) -> None:
     ext      = _parse_extension(agent_ch)
     logger.debug("📞 AgentCalled  ext=%s  ch=%s", ext, agent_ch)
     if ext:
-        await _update_agent_status(ext, "zil_caliyor")
+        _update_agent_status(ext, "zil_caliyor")
 
 
 async def on_agent_connect(manager, event) -> None:
@@ -323,7 +352,7 @@ async def on_agent_connect(manager, event) -> None:
 
     logger.debug("✅ AgentConnect  ext=%s  ch=%s", ext, channel)
     if ext:
-        await _update_agent_status(ext, "konusmada")
+        _update_agent_status(ext, "konusmada")
 
 
 async def on_agent_complete(manager, event) -> None:
@@ -332,7 +361,7 @@ async def on_agent_complete(manager, event) -> None:
     ext     = _parse_extension(channel)
     logger.debug("🔚 AgentComplete ext=%s  ch=%s", ext, channel)
     if ext:
-        await _update_agent_status(ext, "musait")
+        _update_agent_status(ext, "musait")
 
 
 async def on_queue_member_status(manager, event) -> None:
@@ -362,7 +391,7 @@ async def on_queue_member_status(manager, event) -> None:
     durum = STATUS_MAP.get(status, "offline")
     logger.debug("👥 QMStatus  ext=%-12s durum=%-14s (status=%d)", ext, durum, status)
     if ext:
-        await _update_agent_status(ext, durum)
+        _update_agent_status(ext, durum)
 
 
 # ─── Başlatma / Durdurma ─────────────────────────────────────────────────────
@@ -374,7 +403,7 @@ async def start_ami_listener() -> None:
     Bağlantı başarısız olsa dahi FastAPI başlamaya devam eder;
     Manager kendi içinde yeniden bağlanmayı otomatik dener.
     """
-    global _manager
+    global _manager, _status_writer_task
 
     ami_host = (settings.AMI_HOST or "").strip()
     ami_user = (settings.AMI_USER or "").strip()
@@ -388,6 +417,9 @@ async def start_ami_listener() -> None:
     try:
         # Python 3.10+ içinde çalışan event loop'u al
         loop = asyncio.get_running_loop()
+
+        # Arka plan durum yazma görevini başlat
+        _status_writer_task = loop.create_task(_status_writer_loop())
 
         _manager = Manager(
             host              = settings.AMI_HOST,
@@ -433,8 +465,17 @@ async def start_ami_listener() -> None:
 
 
 async def stop_ami_listener() -> None:
-    """Uygulama kapatılırken AMI bağlantısını düzgünce sonlandır."""
-    global _manager
+    """Uygulama kapatılırken AMI bağlantısını ve arka plan görevlerini düzgünce sonlandır."""
+    global _manager, _status_writer_task
+    if _status_writer_task:
+        _status_writer_task.cancel()
+        try:
+            await _status_writer_task
+        except asyncio.CancelledError:
+            pass  # İptal edilmesi normal
+        _status_writer_task = None
+        logger.info("AMI durum yazma görevi durduruldu.")
+
     if _manager is not None:
         try:
             _manager.close()

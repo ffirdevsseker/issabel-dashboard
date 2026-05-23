@@ -18,6 +18,7 @@ const spaAwareProxy = (target = BACKEND) => ({
 })
 
 export default defineConfig({
+  base: "/dashboard/",
   plugins: [react()],
   resolve: {
     alias: {
@@ -33,6 +34,7 @@ export default defineConfig({
       '/reports':      httpProxy(),
       '/kb':           httpProxy(),
       '/health':       httpProxy(),
+      '/agent':        httpProxy(),
       '/dashboard':    httpProxy(),
       '/admin':        spaAwareProxy(),
       '/supervisor':   spaAwareProxy(),

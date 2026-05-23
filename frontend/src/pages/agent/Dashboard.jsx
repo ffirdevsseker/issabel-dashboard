@@ -104,8 +104,8 @@ export default function Dashboard() {
     {
       id:    "my_avg",
       title: "Ort. Sürem",
-      value: `${Math.floor(myAvgSec / 60)}d ${Math.round(myAvgSec % 60)}s`,
-      sub:   "Hedef: 5d 00s",
+      value: `${Math.floor(myAvgSec / 60)}dk ${Math.round(myAvgSec % 60)}sn`,
+      sub:   "Hedef: 5dk 00sn",
       diff:  myAvgSec > 0 && myAvgSec <= 300 ? 1 : myAvgSec > 300 ? -1 : 0,
       icon:  Clock,
       color: myAvgSec === 0 ? "blue" : myAvgSec <= 300 ? "green" : "orange",
@@ -320,7 +320,7 @@ function CallbackListWidget() {
       </div>
 
       {/* List area */}
-      <div className="flex-1 overflow-y-auto divide-y divide-slate-100 bg-slate-50/40" ref={menuRef}>
+      <div className="overflow-y-auto divide-y divide-slate-100 bg-slate-50/40" style={{ maxHeight: 400 }} ref={menuRef}>
         {loading && (
           <div className="p-3 space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -646,8 +646,8 @@ function QueueWidget() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 min-h-[120px]">
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <div className="flex-1 overflow-hidden" style={{ minWidth: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={visibleSeries} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
                   <defs>
                     <linearGradient id="queue-hours-grad" x1="0" y1="0" x2="0" y2="1">
@@ -1019,7 +1019,7 @@ function DailyPrioritiesWidget() {
       </div>
 
       {/* Öncelik listesi */}
-      <div className="flex-1 divide-y divide-slate-100 overflow-y-auto bg-slate-50/40">
+      <div className="divide-y divide-slate-100 overflow-y-auto bg-slate-50/40" style={{ maxHeight: 360 }}>
         {loading && (
           <div className="p-3 space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -1055,7 +1055,7 @@ function DailyPrioritiesWidget() {
           </div>
         )}
 
-        {!loading && !hasError && priorities.map((item, idx) => {
+        {!loading && !hasError && priorities.slice(0, 10).map((item, idx) => {
           const s = getPriorityStyle(item.priority ?? item.oncelik);
           const Icon = s.icon;
           return (

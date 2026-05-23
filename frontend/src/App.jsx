@@ -38,7 +38,7 @@ import SupervisorSettings from "@/pages/supervisor/Settings";
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/dashboard">
       <CallProvider>
         <Routes>
           <Route path="/login" element={<Login />} />

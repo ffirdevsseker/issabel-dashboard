@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const apiBaseUrl = import.meta.env.VITE_API_URL || "";
+const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const api = axios.create({
   baseURL: apiBaseUrl,
@@ -184,11 +184,11 @@ export const systemHealthApi = {
      · /approvals/complaints/{id}/decide    (karar query param: "onayla"|"reddet") */
 export const adminOpsApi = {
   // params: { durum?: "olusturuldu" | "supervisor_inceleme" | "onaylandi" | "reddedildi" }
-  getComplaints: (params) => api.get("/approvals/complaints", { params }),
+  getComplaints: (params) => api.get("/supervisor/approvals/complaints", { params }),
 
   // karar: "onayla" → durum=onaylandi · diğer her şey → reddedildi (backend kontratı)
   decideComplaint: (id, karar, gerekce = "") =>
-    api.post(`/approvals/complaints/${id}/decide`, null, {
+    api.post(`/supervisor/approvals/complaints/${id}/decide`, null, {
       params: { karar, gerekce },
     }),
 

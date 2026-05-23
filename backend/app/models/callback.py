@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -16,4 +16,6 @@ class CallbackTakip(Base):
     agent_id    = Column(PGUUID(as_uuid=True), nullable=False)
     durum       = Column(String(32), default="bekliyor")
     # bekliyor | arandı | ulasilamadi | tamamlandi
-    guncelleme_zamani = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    guncelleme_zamani = Column(DateTime(timezone=True),
+                              default=lambda: datetime.now(timezone.utc),
+                              onupdate=lambda: datetime.now(timezone.utc))

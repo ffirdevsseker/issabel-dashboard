@@ -360,14 +360,16 @@ export default function ActiveCalls() {
   const _startActiveCall = (alertData, waited = 0) => {
     const call = {
       ...mockActiveCall,
-      id: `call-live-${Date.now()}`,
+      id: alertData.id || `call-live-${Date.now()}`,
       startedAt: new Date(),
       callerNumber: alertData.number,
       callerName: alertData.name,
-      crmStatus,
-      customer: crmStatus === "loaded" ? mockActiveCall.customer : null,
     };
-    setActiveCall(call);
+    
+    // Geçici olarak "loading" yapalım, sonra API ile sorgulayacağız
+    setCRMStatus("loading");
+    setActiveCall({ ...call, customer: null });
+    
     setWaitDuration(Math.min(55, waited));
     setDuration(0);
     setHoldDuration(0);
@@ -382,6 +384,41 @@ export default function ActiveCalls() {
     setPostCallCountdown(5);
     setEditingAISummary(false);
   };
+
+  // ── Arayan Numarayı Veritabanında (Müşteri) Ara ──
+  useEffect(() => {
+    if (pageState === "active" && crmStatus === "loading" && activeCall?.callerNumber) {
+      // API'ye sorgu atılacak (gerçek projede cdrApi vb. veya customerApi kullanılacak)
+      // Şimdilik import("../services/api") veya api call simülasyonu yapıyoruz
+      let isCancelled = false;
+      const checkCustomer = async () => {
+        try {
+          // Örnek API call:
+          // const res = await api.get(`/customers/find?phone=${activeCall.callerNumber}`)
+          // if (res.data) ...
+          
+          // Simüle edelim: EGER numara mock data içindeki falanca ise kayıtlı, yoksa "not_found"
+          await new Promise(resolve => setTimeout(resolve, 800));
+          if (isCancelled) return;
+
+          // Test verisi olarak VIP numaralarda müşteri bilgisi var sayalım:
+          if (activeCall.callerNumber.includes("0532")) {
+            setActiveCall(prev => ({ ...prev, customer: mockActiveCall.customer }));
+            setCRMStatus("loaded");
+          } else {
+            // Müşteri bulanamadı -> Yeni form gösterilecek
+            setCRMStatus("not_found");
+          }
+        } catch (error) {
+          console.error("Müşteri arama hatası:", error);
+          if (!isCancelled) setCRMStatus("error");
+        }
+      };
+      
+      checkCustomer();
+      return () => { isCancelled = true; };
+    }
+  }, [pageState, crmStatus, activeCall?.callerNumber]);
 
   const handleAnswerIncoming = () => {
     if (!incomingAlert) return;

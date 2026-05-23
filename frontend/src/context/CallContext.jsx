@@ -1,23 +1,18 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const CallContext = createContext(null);
 
-const TEST_SCENARIOS = [
-  { number: "0532 411 22 18", name: "Ahmet Yılmaz",  ivr: "1 > Muhasebe", vip: true  },
-  { number: "0541 233 88 44", name: "Fatma Şahin",   ivr: "2 > Satış",    vip: false },
-  { number: "0505 671 34 12", name: "Kemal Erdoğan", ivr: "1 > Destek",   vip: false },
-  { number: "0530 988 11 22", name: "Ayşe Kılıç",    ivr: "3 > İade",     vip: true  },
-];
-
 export function CallProvider({ children }) {
   const { user, token, loading } = useAuth();
+  const navigate = useNavigate();
   const [incomingAlert,  setIncomingAlert]  = useState(null);
   const [incomingElapsed, setIncomingElapsed] = useState(0);
-  // set by signalAnswer(); consumed (once) by ActiveCalls on mount/change
   const [pendingAnswer, setPendingAnswer] = useState(null);
-  // dev tool callbacks registered by active pages
   const [devCallbacks, setDevCallbacks] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef(null);
 
   // ── Softphone (sağdan açılır panel) ──
   const [softphoneOpen,    setSoftphoneOpen]    = useState(false);
@@ -97,15 +92,81 @@ export function CallProvider({ children }) {
     if (incomingElapsed >= 30 && incomingAlert) dismissIncoming();
   }, [incomingElapsed]); // eslint-disable-line
 
-  const simulateIncomingCall = () => {
-    if (incomingAlert) return;           // already ringing
-    const s = TEST_SCENARIOS[Math.floor(Math.random() * TEST_SCENARIOS.length)];
-    setIncomingElapsed(0);
-    setPendingAnswer(null);
-    setIncomingAlert(s);
-  };
+  // ── WebSocket Listener (Gerçek Zamanlı Çağrılar) ──
+  useEffect(() => {
+    if (loading || !token || !user) return;
 
-  // User answered from Layout (any page except /active-calls)
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/queue`;
+
+    try {
+      wsRef.current = new WebSocket(wsUrl);
+      
+      wsRef.current.onopen = () => {
+        console.log("WebSocket bağlantısı başarılı.");
+        setWsConnected(true);
+        // İsterseniz bağlandıktan sonra kimlik doğrulama mesajı gönderebilirsiniz:
+        // wsRef.current.send(JSON.stringify({ type: "auth", token: token, extension: user.extension }));
+      };
+      
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          // Gelen her şeyi konsola yazdıralım ki ne olduğunu görelim
+          console.log("📡 WEBSOCKET MESAJI GELDİ:", data);
+
+          if (data.event === "AgentConnect") {
+            console.log("✅ AgentConnect YAKALANDI!");
+            console.log("Beklenen Kullanıcı:", user.extension, "| Asterisk'ten Gelen:", data.extension);
+
+            // Dahili no kontrolünü şimdilik "içeriyorsa" şeklinde esnetelim (örn: "PJSIP/100" içinde "100" var mı?)
+            if (data.extension && user.extension && !data.extension.includes(user.extension)) {
+                console.log("❌ Dahili eşleşmedi, yönlendirme iptal.");
+                return;
+            }
+
+            setPendingAnswer({
+               number: data.callerid || data.callerId || "Gizli Numara",
+               name: data.callerName || "Bilinmeyen",
+               ivr: data.queueName || "Kuyruk",
+               id: data.uniqueid,
+               elapsed: 0,
+               rawPayload: data,
+            });
+            
+            console.log("🚀 Yönlendirme tetikleniyor...");
+            navigate("/active-calls"); // veya sayfa adın neyse
+          }
+
+          if (data.event === "Hangup") {
+            // Çağrı kapandığında alert'i temizle
+            setIncomingAlert(null);
+          }
+        } catch (err) {
+          console.error("WS mesaj parse hatası:", err);
+        }
+      };
+
+      wsRef.current.onclose = () => {
+        console.log("WebSocket bağlantısı koptu.");
+        setWsConnected(false);
+      };
+
+      wsRef.current.onerror = (err) => {
+        console.error("WebSocket hatası:", err);
+      };
+
+    } catch (err) {
+      console.error("WS başlatma hatası:", err);
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [loading, token, user, navigate]);
+
   const signalAnswer = () => {
     if (!incomingAlert) return;
     setPendingAnswer({ ...incomingAlert, elapsed: incomingElapsed });
@@ -135,7 +196,7 @@ export function CallProvider({ children }) {
         incomingElapsed,
         pendingAnswer,
         devCallbacks,
-        simulateIncomingCall,
+        wsConnected,
         signalAnswer,
         dismissIncoming,
         consumeAnswer,

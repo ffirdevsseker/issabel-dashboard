@@ -500,6 +500,7 @@ async def start_ami_listener() -> None:
         _manager.register_event("AgentConnect", on_agent_connect)
         _manager.register_event("AgentComplete", on_agent_complete)
         _manager.register_event("QueueMemberStatus", on_queue_member_status)
+        _manager.register_event("Newstate", on_new_state)
 
         _manager.connect()
 

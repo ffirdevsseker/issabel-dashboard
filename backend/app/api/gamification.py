@@ -42,9 +42,9 @@ async def get_leaderboard(
                 COALESCE(u.xp, 0)                       AS xp,
                 COALESCE(u.unvan, '')                   AS unvan
             FROM kullanicilar u
-            JOIN roller r ON r.id = u.rol_id
+            JOIN departmanlar d ON d.id = u.departman_id
             WHERE u.silindi_mi = FALSE
-              AND LOWER(r.ad) = 'personel'
+              AND d.ad ILIKE '%hizmetleri%'
             ORDER BY COALESCE(u.xp, 0) DESC, u.ad_soyad ASC
             LIMIT 50
         """))).fetchall()

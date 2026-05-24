@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import FastAPI
@@ -8,6 +9,7 @@ from app.db.health import check_db_connection
 from app.db.session import engine, Base
 from app.db.init_db import seed_db
 from app.ami.listener import start_ami_listener, stop_ami_listener
+from app.services.cdr_sync import start_cdr_sync
 import app.models  # noqa: F401
 
 app = FastAPI(
@@ -37,8 +39,12 @@ async def on_startup_db_check():
 
 @app.on_event("startup")
 async def on_startup_ami():
-    """Asterisk AMI bağlantısını başlat (hata uygulamayı durdurmaz)."""
-    await start_ami_listener()
+    asyncio.ensure_future(start_ami_listener())
+
+
+@app.on_event("startup")
+async def on_startup_cdr_sync():
+    asyncio.ensure_future(start_cdr_sync())
 
 
 @app.on_event("shutdown")

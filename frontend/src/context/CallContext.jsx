@@ -115,7 +115,9 @@ export function CallProvider({ children }) {
           // Gelen her şeyi konsola yazdıralım ki ne olduğunu görelim
           console.log("📡 WEBSOCKET MESAJI GELDİ:", data);
 
-          if (data.event === "AgentConnect") {
+          const eventType = data.type || data.event;
+
+          if (eventType === "AgentConnect") {
             console.log("✅ AgentConnect YAKALANDI!");
             console.log("Beklenen Kullanıcı:", user.extension, "| Asterisk'ten Gelen:", data.extension);
 
@@ -138,7 +140,7 @@ export function CallProvider({ children }) {
             navigate("/active-calls"); // veya sayfa adın neyse
           }
 
-          if (data.event === "Hangup") {
+          if (eventType === "Hangup") {
             // Çağrı kapandığında alert'i temizle
             setIncomingAlert(null);
           }

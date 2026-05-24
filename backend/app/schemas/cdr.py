@@ -12,7 +12,7 @@ class CDRRead(BaseModel):
     yon: str
     konusma_suresi: int
     bekleme_suresi: int
-    kategori: str
+    kategori: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

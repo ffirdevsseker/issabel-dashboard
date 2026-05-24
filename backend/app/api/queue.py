@@ -22,6 +22,17 @@ _DURUM_LABEL = {
     "aktarildi":    "Aktarıldı",
 }
 
+# ── Gerçek Zamanlı Event Pub/Sub yapısı ──
+event_queues = set()
+
+def broadcast_event(event_dict: dict):
+    """Bu metot çağrıldığında o an bağlı olan tüm WebSocket istemcilerine ilgili event'i fırlatır."""
+    for q in list(event_queues):
+        try:
+            q.put_nowait(event_dict)
+        except Exception:
+            pass
+
 
 def _user_id_for(user: User):
     if user.role_name == "admin":
@@ -126,6 +137,9 @@ async def queue_stream(websocket: WebSocket):
         uid = _user_id_for(user)
         await websocket.accept()
 
+        client_queue = asyncio.Queue()
+        event_queues.add(client_queue)
+
         # DB hatalarında WS düşmesin — boş snapshot gönder, yeniden dene
         empty_snapshot = {
             "type": "queue_update",
@@ -142,6 +156,15 @@ async def queue_stream(websocket: WebSocket):
 
         while True:
             try:
+                # 1 saniye bekler. Eğer client_queue'dan event gelirse onu yollar.
+                # Gelmezse timeout'a düşer ve standart _build_queue_snapshot yollar.
+                try:
+                    event = await asyncio.wait_for(client_queue.get(), timeout=1.0)
+                    await websocket.send_json(event)
+                    continue  # Döngü başına dön, snapshot hemen yollama
+                except asyncio.TimeoutError:
+                    pass
+
                 snapshot = _build_queue_snapshot(db, user_id=uid)
             except Exception as exc:
                 logger.warning("queue snapshot başarısız (rollback ediliyor): %s", exc)
@@ -150,10 +173,12 @@ async def queue_stream(websocket: WebSocket):
                 except Exception:  # noqa: BLE001
                     pass
                 snapshot = {**empty_snapshot, "updatedAt": datetime.now(timezone.utc).isoformat()}
+            
             await websocket.send_json(snapshot)
-            await asyncio.sleep(1)
 
     except WebSocketDisconnect:
-        return
+        pass
     finally:
+        if client_queue in event_queues:
+            event_queues.remove(client_queue)
         db.close()

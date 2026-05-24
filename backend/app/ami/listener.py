@@ -38,6 +38,11 @@ from app.db.async_session import AsyncSessionLocal
 from app.models.cdr import CDR
 from app.models.user import User
 
+try:
+    from app.api.queue import broadcast_event
+except ImportError:
+    broadcast_event = None
+
 logger = logging.getLogger(__name__)
 
 # ─── Enum değer eşlemeleri ───────────────────────────────────────────────────
@@ -248,6 +253,10 @@ async def _write_cdr(data: dict) -> None:
 # bu yüzden tüm handler'lar 'async def' olarak tanımlanabilir.
 
 async def on_newchannel(manager, event) -> None:
+    logger.warning("RAW Newchannel: ch=%s caller=%s exten=%s ctx=%s",
+                   event.get("Channel", ""), event.get("CallerIDNum", ""),
+                   event.get("Exten", ""), event.get("Context", ""))
+
     channel  = event.get("Channel", "")
     uniqueid = event.get("Uniqueid", "")
     caller   = event.get("CallerIDNum", "")
@@ -255,13 +264,17 @@ async def on_newchannel(manager, event) -> None:
     context  = event.get("Context", "")
 
     if not channel or not uniqueid:
+        logger.warning("Newchannel atlandı: channel=%r uniqueid=%r", channel, uniqueid)
         return
 
-    # from-internal → dahili telefon arıyor (giden), diğerleri → gelen
     _OUTBOUND_CONTEXTS = {"from-internal", "from-internal-xfer", "default"}
-    direction = "giden" if context in _OUTBOUND_CONTEXTS else "gelen"
-    extension = caller if direction == "giden" else _parse_extension(channel)
-    user_id   = await _resolve_user_id(extension)
+    if context in _OUTBOUND_CONTEXTS:
+        direction = "giden"
+        extension = caller  # dahili arayan numara
+    else:
+        direction = "gelen"
+        extension = ""      # trunk/from-pstn: ajan henüz belli değil
+    user_id = await _resolve_user_id(extension)
 
     _active_calls[channel] = {
         "uniqueid":    uniqueid,
@@ -290,7 +303,8 @@ async def on_hangup(manager, event) -> None:
 
     data = _active_calls.pop(channel, None)
     if data is None:
-        return  # Takip etmediğimiz kanal (trunk, konferans vb.)
+        logger.debug("Hangup: kanal kayıtlı değil — active_calls: %s", list(_active_calls.keys()))
+        return
 
     data["end_time"]  = datetime.now(timezone.utc)
     data["cause_txt"] = cause_txt
@@ -354,6 +368,19 @@ async def on_agent_connect(manager, event) -> None:
     if ext:
         _update_agent_status(ext, "konusmada")
 
+    # Front-end'e WebSocket üzerinden gerçek zamanlı AgentConnect bildirimi gönder
+    if broadcast_event and channel in _active_calls:
+        call_info = _active_calls[channel]
+        broadcast_event({
+            "event": "AgentConnect",
+            "extension": ext,
+            "callerid": call_info.get("caller", ""),
+            "callerName": call_info.get("callerName", "Bilinmeyen"),
+            "uniqueid": call_info.get("uniqueid", ""),
+            "queueName": call_info.get("queue", "Kuyruk"),
+            "raw": {k: str(v) for k, v in event.items()},
+        })
+
 
 async def on_agent_complete(manager, event) -> None:
     """Ajan kuyruk çağrısını tamamladı."""
@@ -362,6 +389,22 @@ async def on_agent_complete(manager, event) -> None:
     logger.debug("🔚 AgentComplete ext=%s  ch=%s", ext, channel)
     if ext:
         _update_agent_status(ext, "musait")
+
+async def on_new_state(manager, event) -> None:
+    # 'Up' durumu çağrının açıldığını (yanıtlandığını) ifade eder
+    if event.get('ChannelStateDesc') == 'Up':
+        print(f"🚀 ÇAĞRI YANITLANDI! Event Data: {dict(event)}")
+        
+        # Frontend'e göndermek için event verisi oluştur
+        broadcast_data = {
+            "event": "AgentConnect",
+            "callerid": event.get('CallerIDNum') or event.get('CallerID', ''),
+            "extension": event.get('ConnectedLineNum') or _parse_extension(event.get('Channel', '')),
+            "uniqueid": event.get('Uniqueid', '')
+        }
+        
+        if broadcast_event:
+            broadcast_event(broadcast_data)
 
 
 async def on_queue_member_status(manager, event) -> None:
@@ -397,70 +440,59 @@ async def on_queue_member_status(manager, event) -> None:
 # ─── Başlatma / Durdurma ─────────────────────────────────────────────────────
 
 async def start_ami_listener() -> None:
-    """
-    Panoramisk Manager'ı başlat ve tüm event handler'larını kaydet.
-
-    Bağlantı başarısız olsa dahi FastAPI başlamaya devam eder;
-    Manager kendi içinde yeniden bağlanmayı otomatik dener.
-    """
     global _manager, _status_writer_task
 
     ami_host = (settings.AMI_HOST or "").strip()
     ami_user = (settings.AMI_USER or "").strip()
 
     if not ami_host or not ami_user:
-        logger.info(
-            "AMI_HOST veya AMI_USER boş — AMI entegrasyonu devre dışı bırakıldı."
-        )
+        logger.info("AMI_HOST veya AMI_USER boş — AMI devre dışı.")
         return
 
     try:
-        # Python 3.10+ içinde çalışan event loop'u al
         loop = asyncio.get_running_loop()
-
-        # Arka plan durum yazma görevini başlat
         _status_writer_task = loop.create_task(_status_writer_loop())
 
         _manager = Manager(
-            host              = settings.AMI_HOST,
-            port              = settings.AMI_PORT,
-            username          = settings.AMI_USER,    # panoramisk config anahtarı
-            secret            = settings.AMI_SECRET,  # panoramisk config anahtarı
-            ssl               = False,
-            encoding          = "utf-8",
-            loop              = loop,
-            ping_delay        = 10,
-            ping_interval     = 10,
-            reconnect_timeout = 5,
+            host=settings.AMI_HOST,
+            port=settings.AMI_PORT,
+            username=settings.AMI_USER,
+            secret=settings.AMI_SECRET,
+            ssl=False,
+            encoding="utf-8",
+            loop=loop,
+            ping_delay=10,
+            ping_interval=10,
+            reconnect_timeout=5,
         )
 
-        # ── Event kayıtları ─────────────────────────────────────────────────
-        _manager.register_event("Newchannel",        on_newchannel)
-        _manager.register_event("Hangup",            on_hangup)
-        _manager.register_event("Bridge",            on_bridge)
-        _manager.register_event("QueueCallerJoin",   on_queue_caller_join)
-        _manager.register_event("QueueCallerLeave",  on_queue_caller_leave)
-        _manager.register_event("AgentCalled",       on_agent_called)
-        _manager.register_event("AgentConnect",      on_agent_connect)
-        _manager.register_event("AgentComplete",     on_agent_complete)
+        _manager.register_event("Newchannel", on_newchannel)
+        _manager.register_event("Hangup", on_hangup)
+        _manager.register_event("Bridge", on_bridge)
+        _manager.register_event("QueueCallerJoin", on_queue_caller_join)
+        _manager.register_event("QueueCallerLeave", on_queue_caller_leave)
+        _manager.register_event("AgentCalled", on_agent_called)
+        _manager.register_event("AgentConnect", on_agent_connect)
+        _manager.register_event("AgentComplete", on_agent_complete)
         _manager.register_event("QueueMemberStatus", on_queue_member_status)
 
-        # connect() sync'tir — arka planda asyncio.Task oluşturur,
-        # başarılı bağlantıda connection_made() → Login action → login() çağrılır.
         _manager.connect()
 
-        logger.info(
-            "AMI bağlantısı başlatıldı → %s:%d  (kullanıcı: %s)",
-            settings.AMI_HOST, settings.AMI_PORT, settings.AMI_USER,
-        )
+        # Bağlantının kurulması için bekle
+        await asyncio.sleep(3)
+
+        # Ping ile doğrula
+        try:
+            response = await _manager.send_action({"Action": "Ping"})
+            logger.info("AMI Ping başarılı: %s", response)
+        except Exception as e:
+            logger.warning("AMI Ping başarısız: %s", e)
+
+        logger.info("AMI bağlantısı başlatıldı → %s:%d (kullanıcı: %s)",
+                    settings.AMI_HOST, settings.AMI_PORT, settings.AMI_USER)
 
     except Exception as exc:
-        logger.warning(
-            "AMI başlatılamadı (%s:%d) — canlı çağrı izleme devre dışı. Hata: %s",
-            getattr(settings, "AMI_HOST", "?"),
-            getattr(settings, "AMI_PORT", 5038),
-            exc,
-        )
+        logger.warning("AMI başlatılamadı: %s", exc)
         _manager = None
 
 

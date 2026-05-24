@@ -8,6 +8,7 @@ import { useQueueStatus } from "@/context/QueueStatusContext";
 import { useCall } from "@/context/CallContext";
 import { useAuth } from "@/context/AuthContext";
 import { agentApi, cdrApi } from "@/services/api";
+import { WifiOff } from "lucide-react";
 
 const VARDIYA_BASLANGIC = 9;
 const VARDIYA_BITIS     = 17;
@@ -19,8 +20,9 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [nowTick, setNowTick] = useState(() => Date.now());
-  const [stats, setStats]     = useState(null);
+  const [nowTick, setNowTick]   = useState(() => Date.now());
+  const [stats, setStats]       = useState(null);
+  const [amiOk, setAmiOk]       = useState(null); // null = henüz bilinmiyor
 
   const isOffline = connectionState === "disconnected";
   const queueWaiting = queue?.waiting ?? 0;
@@ -49,6 +51,19 @@ export default function Header() {
     return () => clearInterval(id);
   }, []);
 
+  /* AMI durumu — 30 sn'de bir kontrol */
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      agentApi.getAmiStatus()
+        .then((res) => { if (!cancelled) setAmiOk(res.data?.connected === true); })
+        .catch(() => { if (!cancelled) setAmiOk(false); });
+    };
+    check();
+    const id = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   /* Vardiya hesabı */
   const now = new Date(nowTick);
   const shiftEnd = new Date(now);
@@ -60,9 +75,9 @@ export default function Header() {
   const shiftLabel = `${String(VARDIYA_BASLANGIC).padStart(2, "0")}:00-${String(VARDIYA_BITIS).padStart(2, "0")}:00`;
 
   /* KPI değerleri */
-  const myTotal     = stats?.total_calls      ?? 0;
-  const myAnswered  = stats?.answered_calls   ?? 0;
-  const teamMissed  = stats ? (stats.no_answer_calls || 0) + (stats.busy_calls || 0) : 0;
+  const myTotal     = stats?.total_calls        ?? 0;
+  const myAnswered  = stats?.answered_calls     ?? 0;
+  const myMissed    = stats?.my_no_answer_calls ?? 0;
 
   /* Kuyruk renk tonu */
   const queueTone =
@@ -98,12 +113,12 @@ export default function Header() {
       onClick: () => navigate("/calls"),
     },
     {
-      label:   "Ekip Cevapsız",
-      value:   teamMissed,
+      label:   "Cevapsız",
+      value:   myMissed,
       icon:    PhoneMissed,
-      color:   teamMissed > 0 ? "text-rose-400" : "text-slate-300",
-      bg:      teamMissed > 0 ? "bg-rose-500/12" : "bg-slate-500/10",
-      onClick: () => navigate("/"),
+      color:   myMissed > 0 ? "text-rose-400" : "text-slate-300",
+      bg:      myMissed > 0 ? "bg-rose-500/12" : "bg-slate-500/10",
+      onClick: () => navigate("/calls"),
     },
     {
       label:   "Kuyruk",
@@ -195,46 +210,46 @@ export default function Header() {
             )}
           </button>
 
-          {/* Bildirim */}
+          {/* Bildirim — badge kaldırıldı, API bağlantısı yok */}
           <button
             type="button"
             title="Bildirimler"
             className="relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
           >
             <Bell className="h-[18px] w-[18px]" />
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-cyan-400 text-cyan-950 text-[10px] font-bold flex items-center justify-center px-1 border-2 border-[#132334]">
-              3
-            </span>
           </button>
 
-          {/* Mesaj */}
+          {/* Mesaj — badge kaldırıldı, API bağlantısı yok */}
           <button
             type="button"
             title="Mesajlar"
             className="relative inline-flex items-center justify-center h-10 w-10 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
           >
             <MessageCircle className="h-[18px] w-[18px]" />
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-sky-300 text-slate-950 text-[10px] font-bold flex items-center justify-center px-1 border-2 border-[#132334]">
-              12
-            </span>
           </button>
 
-          {/* AMI Bağlı */}
-          <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-400/30">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(74,222,128,0.55)]" />
-            </span>
-            <Radio className="h-3.5 w-3.5 text-emerald-300" />
-            <div className="flex flex-col leading-none">
-              <span className="text-[11px] font-bold text-emerald-300 tracking-wide">
-                AMI
+          {/* AMI — gerçek bağlantı durumu */}
+          {amiOk === null ? null : amiOk ? (
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-400/30">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(74,222,128,0.55)]" />
               </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-300/70 mt-0.5">
-                Bağlı
-              </span>
+              <Radio className="h-3.5 w-3.5 text-emerald-300" />
+              <div className="flex flex-col leading-none">
+                <span className="text-[11px] font-bold text-emerald-300 tracking-wide">AMI</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-emerald-300/70 mt-0.5">Bağlı</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-400/30">
+              <WifiOff className="h-3.5 w-3.5 text-rose-400" />
+              <div className="flex flex-col leading-none">
+                <span className="text-[11px] font-bold text-rose-400 tracking-wide">AMI</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-rose-400/70 mt-0.5">Bağlı Değil</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

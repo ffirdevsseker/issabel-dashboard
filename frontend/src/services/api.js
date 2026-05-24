@@ -56,6 +56,7 @@ export const agentApi = {
   getCallbackList: ()              => api.get("/agent/callbacks"),
   trackCallback:   (id, durum)     => api.post(`/agent/callbacks/${id}/track`, { durum }),
   getDirectory:    ()              => api.get("/agent/directory"),
+  getAmiStatus:    ()              => api.get("/agent/ami-status"),
 };
 
 export const adminApi = {

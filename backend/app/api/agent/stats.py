@@ -78,17 +78,18 @@ async def agent_today_stats(
         personal = dict(_EMPTY_STATS)
         team = dict(_EMPTY_STATS)
     return {
-        # Kişisel: bu agent'ın cevapladığı çağrılar
+        # Kişisel: bu agent'ın çağrıları
         "total_calls":            personal["total_calls"],
         "answered_calls":         personal["answered_calls"],
         "avg_duration_seconds":   personal["avg_duration_seconds"],
         "total_duration_seconds": personal["total_duration_seconds"],
         "answer_rate_percent":    personal["answer_rate_percent"],
-        # Ekip geneli: cevapsız çağrılar (user_id = NULL)
+        # Kişisel cevapsız (header için)
+        "my_no_answer_calls":     personal["no_answer_calls"] + personal["busy_calls"],
+        # Ekip geneli (referans / dashboard KPI için)
         "no_answer_calls":        team["no_answer_calls"],
         "busy_calls":             team["busy_calls"],
         "failed_calls":           team["failed_calls"],
-        # Ekip toplamı (referans için)
         "team_total":             team["total_calls"],
         "team_answered":          team["answered_calls"],
     }
@@ -174,7 +175,7 @@ async def agent_callbacks(
     """
     # 1) CDR cevapsız listesi (bugün filtreli, limit ile kısıtlı)
     try:
-        rows = await cdr_service.get_today_missed_calls(db, user_id=None)
+        rows = await cdr_service.get_today_missed_calls(db, user_id=current_user.id)
         rows = rows[:limit]
     except Exception as exc:
         logger.warning("agent_callbacks CDR sorgusu başarısız: %s", exc)
@@ -267,6 +268,21 @@ async def track_callback(
             status_code=503,
             detail="Takip kaydı oluşturulamadı (callback_takip tablosu hazır olmayabilir).",
         )
+
+
+# ── GET /agent/ami-status ────────────────────────────────────────────────────
+@router.get("/ami-status")
+async def agent_ami_status(
+    current_user: User = Depends(get_current_user),
+):
+    """AMI bağlantısının gerçek durumunu döner."""
+    try:
+        from app.ami.listener import get_manager
+        manager = get_manager()
+        connected = manager is not None and getattr(manager, "_protocol", None) is not None
+    except Exception:
+        connected = False
+    return {"connected": connected}
 
 
 def _age_label(dt: datetime | None) -> str:

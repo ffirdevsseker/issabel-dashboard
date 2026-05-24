@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     DB_PASSWORD: str
     DB_NAME: str
 
+    # MariaDB (Asterisk CDR)
+    MARIADB_HOST: str = "127.0.0.1"
+    MARIADB_USER: str = "root"
+    MARIADB_PASSWORD: str = ""
+    MARIADB_DB: str = "asteriskcdrdb"
+
     # AMI
     AMI_HOST: str
     AMI_PORT: int = 5038

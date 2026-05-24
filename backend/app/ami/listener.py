@@ -268,12 +268,15 @@ async def on_newchannel(manager, event) -> None:
         return
 
     _OUTBOUND_CONTEXTS = {"from-internal", "from-internal-xfer", "default"}
-    if context in _OUTBOUND_CONTEXTS:
-        direction = "giden"
-        extension = caller  # dahili arayan numara
+    direction = "giden" if context in _OUTBOUND_CONTEXTS else "gelen"
+
+    # Dış hat çağrılarında veya TELSAM gibi operatör kanallarında extension atanmaz.
+    # Aksi takdirde split mantığıyla kanaldan (örn: PJSIP/1001) dahili ayıklanır.
+    if context == "from-pstn" or "TELSAM" in channel:
+        extension = ""
     else:
-        direction = "gelen"
-        extension = ""      # trunk/from-pstn: ajan henüz belli değil
+        extension = _parse_extension(channel)
+
     user_id = await _resolve_user_id(extension)
 
     _active_calls[channel] = {
@@ -303,7 +306,16 @@ async def on_hangup(manager, event) -> None:
 
     data = _active_calls.pop(channel, None)
     if data is None:
-        logger.debug("Hangup: kanal kayıtlı değil — active_calls: %s", list(_active_calls.keys()))
+        try:
+            event_dump = {k: str(v) for k, v in event.items()} if hasattr(event, "items") else str(event)
+        except Exception:
+            event_dump = str(event)
+            
+        logger.warning(
+            "Hayalet Çağrı (Hangup): Kapatılmak istenen kanal aktif çağrılar listesinde bulunamadı! channel=%r, event_dump=%s",
+            channel,
+            event_dump
+        )
         return
 
     data["end_time"]  = datetime.now(timezone.utc)
@@ -355,8 +367,21 @@ async def on_agent_called(manager, event) -> None:
         _update_agent_status(ext, "zil_caliyor")
 
 
-async def on_agent_connect(manager, event) -> None:
+async def on_agent_connect(manager, message) -> None:
     """Ajan çağrıyı yanıtladı."""
+    if hasattr(message, "headers"):
+        event = dict(message.headers)
+    elif isinstance(message, dict):
+        event = message
+    else:
+        try:
+            event = dict(message)
+        except Exception:
+            event = {k: getattr(message, k) for k in dir(message) if not k.startswith("_")}
+            
+    # Güvenli JSON serileştirmesi için değerleri string formata çeviriyoruz
+    event = {k: str(v) for k, v in event.items()}
+
     channel = event.get("Channel", "")
     ext     = _parse_extension(channel)
     now     = datetime.now(timezone.utc)

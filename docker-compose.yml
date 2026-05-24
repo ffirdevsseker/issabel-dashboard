@@ -38,6 +38,10 @@ services:
       AMI_PORT: ${AMI_PORT:-5038}
       AMI_USER: ${AMI_USER:-admin}
       AMI_SECRET: ${AMI_SECRET:-your_ami_secret}
+      MARIADB_HOST: ${MARIADB_HOST:-192.168.1.100}
+      MARIADB_USER: ${MARIADB_USER:-root}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-}
+      MARIADB_DB: ${MARIADB_DB:-asteriskcdrdb}
       SECRET_KEY: ${SECRET_KEY:-change-this-to-a-random-long-string-later}
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 60

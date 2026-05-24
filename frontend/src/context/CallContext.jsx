@@ -96,8 +96,11 @@ export function CallProvider({ children }) {
   useEffect(() => {
     if (loading || !token || !user) return;
 
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/queue`;
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const host = import.meta.env.VITE_API_URL
+      ? new URL(import.meta.env.VITE_API_URL).host
+      : `${window.location.hostname}:5000`;
+    const wsUrl = `${wsProtocol}://${host}/ws/queue?token=${encodeURIComponent(token)}`;
 
     try {
       wsRef.current = new WebSocket(wsUrl);

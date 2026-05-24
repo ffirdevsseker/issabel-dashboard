@@ -416,20 +416,17 @@ async def on_agent_complete(manager, event) -> None:
         _update_agent_status(ext, "musait")
 
 async def on_new_state(manager, event) -> None:
-    # 'Up' durumu çağrının açıldığını (yanıtlandığını) ifade eder
+    # 'Up' durumu çağrının açıldığını (yanıtlandığını) ifade eder.
+    # NOT: AgentConnect broadcast'i yalnızca on_agent_connect handler'ından
+    # yapılır. Burada tekrar broadcast yapılırsa frontend çift tetiklenir.
     if event.get('ChannelStateDesc') == 'Up':
-        print(f"🚀 ÇAĞRI YANITLANDI! Event Data: {dict(event)}")
-        
-        # Frontend'e göndermek için event verisi oluştur
-        broadcast_data = {
-            "event": "AgentConnect",
-            "callerid": event.get('CallerIDNum') or event.get('CallerID', ''),
-            "extension": event.get('ConnectedLineNum') or _parse_extension(event.get('Channel', '')),
-            "uniqueid": event.get('Uniqueid', '')
-        }
-        
-        if broadcast_event:
-            broadcast_event(broadcast_data)
+        logger.debug(
+            "Newstate/Up  ch=%-28s caller=%-12s connected=%s uniqueid=%s",
+            event.get('Channel', ''),
+            event.get('CallerIDNum', ''),
+            event.get('ConnectedLineNum', ''),
+            event.get('Uniqueid', ''),
+        )
 
 
 async def on_queue_member_status(manager, event) -> None:

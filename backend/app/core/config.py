@@ -10,9 +10,11 @@ class Settings(BaseSettings):
     DB_NAME: str
 
     # MariaDB (Asterisk CDR)
+    # .env veya ortam değişkeninde MARIADB_PASSWORD tanımlı değilse CDR sync
+    # servisi devre dışı kalır (cdr_sync.py erken çıkış yapar).
     MARIADB_HOST: str = "127.0.0.1"
     MARIADB_USER: str = "root"
-    MARIADB_PASSWORD: str = ""
+    MARIADB_PASSWORD: str = ""          # .env'den override edilmeli
     MARIADB_DB: str = "asteriskcdrdb"
 
     # AMI

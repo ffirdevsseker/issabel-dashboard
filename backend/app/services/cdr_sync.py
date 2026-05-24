@@ -176,10 +176,16 @@ async def start_cdr_sync() -> None:
     global _last_sync
 
     if not settings.MARIADB_PASSWORD:
-        logger.info("MARIADB_PASSWORD boş — CDR sync devre dışı.")
+        logger.warning(
+            "MARIADB_PASSWORD boş — CDR sync devre dışı. "
+            ".env dosyasına veya ortam değişkenlerine MariaDB şifresini ekleyin."
+        )
         return
 
-    logger.info("CDR sync servisi başladı (her 30s, MariaDB → PostgreSQL).")
+    logger.info(
+        "CDR sync servisi başladı (her 5s, MariaDB %s/%s → PostgreSQL).",
+        settings.MARIADB_HOST, settings.MARIADB_DB,
+    )
 
     while True:
         await asyncio.sleep(5)
